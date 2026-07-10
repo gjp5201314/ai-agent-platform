@@ -1,5 +1,4 @@
-FROM python:3.11-slim
-
+FROM registry.aliyuncs.com/library/python:3.11-slim
 WORKDIR /app
 
 # System deps for pypdf, python-docx, pgvector

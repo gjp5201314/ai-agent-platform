@@ -19,6 +19,15 @@ echo_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 echo_info "检查 Docker..."
 if ! command -v docker &> /dev/null; then
     echo_info "Docker 未安装，开始自动安装..."
+
+    # 清理可能导致 apt-get update 失败的第三方源
+    echo_info "清理可能冲突的第三方 apt 源..."
+    sudo rm -f /etc/apt/sources.list.d/kubernetes.list 2>/dev/null || true
+    sudo rm -f /etc/apt/sources.list.d/apt.kubernetes.io.list 2>/dev/null || true
+    # 注释掉 sources.list 中的 kubernetes 行
+    sudo sed -i '/kubernetes/s/^/#/' /etc/apt/sources.list 2>/dev/null || true
+    sudo apt-get update -qq
+
     curl -fsSL https://get.docker.com | sh
     systemctl start docker
     systemctl enable docker
