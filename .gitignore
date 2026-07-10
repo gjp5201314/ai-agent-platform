@@ -1,0 +1,27 @@
+# Dependencies
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+frontend/node_modules/
+
+# Environment
+.env
+backend/.env
+
+# Build output
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.override.yml
+
+# Data (when running locally)
+postgres_data/
+redis_data/
+
+# OS
+.DS_Store
+Thumbs.db
