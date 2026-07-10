@@ -94,7 +94,7 @@ async def run_agent(
     """
     enabled_tools = agent_config.get("enabled_tools", [])
 
-    # Step 1: RAG retrieval (if enabled)
+    # Step 1: RAG retrieval (if enabled) — returns context only, no messages
     rag_context = []
     if use_rag and "rag" in enabled_tools:
         state_for_rag = AgentState(
@@ -106,9 +106,8 @@ async def run_agent(
             iteration=0,
         )
         rag_result = await rag_node(state_for_rag, db)
-        if rag_result.get("messages"):
-            messages = messages + rag_result["messages"]
         rag_context = rag_result.get("retrieved_context", [])
+        # NOTE: Do NOT add rag_result["messages"] — agent_node merges context into system prompt
 
     # Yield RAG context info
     if rag_context:

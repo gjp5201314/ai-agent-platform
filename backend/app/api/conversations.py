@@ -31,7 +31,14 @@ async def create_conversation(
 
     result = await db.execute(select(Conversation).where(Conversation.id == conv.id))
     conv = result.scalar_one()
-    return ConversationOut.model_validate(conv).model_copy(update={"message_count": 0})
+    return ConversationOut(
+        id=conv.id,
+        title=conv.title,
+        agent_id=conv.agent_id,
+        created_at=conv.created_at,
+        updated_at=conv.updated_at,
+        message_count=0,
+    )
 
 
 @router.get("", response_model=list[ConversationOut])
@@ -101,7 +108,16 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
         created_at=conv.created_at,
         updated_at=conv.updated_at,
         message_count=len(messages),
-        messages=[MessageOut.model_validate(m) for m in messages],
+        messages=[
+            MessageOut(
+                id=m.id,
+                role=m.role,
+                content=m.content,
+                metadata=m.metadata_,
+                created_at=m.created_at,
+            )
+            for m in messages
+        ],
     )
 
 

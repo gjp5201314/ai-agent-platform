@@ -2,9 +2,6 @@
 LangGraph node functions.
 Each node receives AgentState and returns a partial state update.
 """
-import json
-from typing import AsyncIterator
-
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.prebuilt import ToolNode
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,10 +12,46 @@ from app.agent.tools import get_tools
 from app.config import settings
 
 
+def _ensure_str_content(msg):
+    """Ensure message content is a plain string (DashScope doesn't support content blocks)."""
+    content = getattr(msg, "content", None)
+    if content is not None and not isinstance(content, str):
+        # Convert list of content blocks to plain string
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, str):
+                    parts.append(part)
+                elif isinstance(part, dict) and "text" in part:
+                    parts.append(part["text"])
+            # Reconstruct the message with string content
+            return type(msg)(content="".join(parts))
+    return msg
+
+
+def _clean_messages(messages: list) -> list:
+    """Remove duplicate SystemMessages and ensure content is string."""
+    result = []
+    has_system = False
+    for msg in messages:
+        msg = _ensure_str_content(msg)
+        # Only keep the first SystemMessage, skip subsequent ones
+        if isinstance(msg, SystemMessage):
+            if has_system:
+                # Merge content into the first system message
+                first = result[0]
+                first = SystemMessage(content=first.content + "\n\n" + msg.content)
+                result[0] = first
+                continue
+            has_system = True
+        result.append(msg)
+    return result
+
+
 async def rag_node(state: AgentState, db: AsyncSession) -> dict:
     """
-    Retrieve relevant document chunks from the knowledge base
-    and inject them as context into the conversation.
+    Retrieve relevant document chunks from the knowledge base.
+    Returns retrieved_context only (no messages) to avoid duplicate SystemMessages.
     """
     if not state.get("use_rag", False):
         return {}
@@ -30,7 +63,6 @@ async def rag_node(state: AgentState, db: AsyncSession) -> dict:
         if isinstance(msg, HumanMessage):
             last_user_msg = msg.content
             break
-        # Messages might be dicts (from API)
         if isinstance(msg, dict) and msg.get("role") == "user":
             last_user_msg = msg["content"]
             break
@@ -49,30 +81,39 @@ async def rag_node(state: AgentState, db: AsyncSession) -> dict:
     if not results:
         return {"retrieved_context": []}
 
-    # Build context message
-    context_parts = []
-    for i, r in enumerate(results, 1):
-        context_parts.append(f"[文档{i}] 来源: {r.filename}\n内容: {r.content}")
-
-    context_text = "以下是从知识库中检索到的相关内容：\n\n" + "\n\n---\n\n".join(context_parts)
-    context_text += "\n\n请基于以上知识库内容回答用户问题。如果知识库中没有相关信息，请说明并使用你的知识回答。"
-
+    # Return context data only — agent_node will merge it into the system prompt
     return {
         "retrieved_context": [r.model_dump() for r in results],
-        "messages": [SystemMessage(content=context_text)],
     }
 
 
 async def agent_node(state: AgentState) -> dict:
     """
     The main agent node: calls the LLM with conversation history and tools.
-    Supports streaming via astream.
+    Merges system prompt + RAG context into a single SystemMessage.
     """
     agent_config = state.get("agent_config", {})
     provider = agent_config.get("provider", settings.llm_provider)
     temperature = agent_config.get("temperature", 0.7)
     max_tokens = agent_config.get("max_tokens", 4096)
     system_prompt = agent_config.get("system_prompt", "You are a helpful AI assistant.")
+
+    # Merge RAG context into the system prompt (single SystemMessage)
+    rag_context = state.get("retrieved_context", [])
+    if rag_context:
+        context_parts = []
+        for i, r in enumerate(rag_context, 1):
+            filename = r.get("filename", "unknown") if isinstance(r, dict) else "unknown"
+            content = r.get("content", "") if isinstance(r, dict) else str(r)
+            context_parts.append(f"[文档{i}] 来源: {filename}\n内容: {content}")
+        context_text = (
+            "\n\n以下是从知识库中检索到的相关内容：\n\n"
+            + "\n\n---\n\n".join(context_parts)
+            + "\n\n请基于以上知识库内容回答用户问题。如果知识库中没有相关信息，请说明并使用你的知识回答。"
+        )
+        full_system_prompt = system_prompt + context_text
+    else:
+        full_system_prompt = system_prompt
 
     llm = get_llm(provider=provider, temperature=temperature, max_tokens=max_tokens)
 
@@ -82,8 +123,10 @@ async def agent_node(state: AgentState) -> dict:
     if tools:
         llm = llm.bind_tools(tools)
 
-    # Build message list: system prompt + history
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
+    # Build messages: single system message + history
+    raw_messages = [SystemMessage(content=full_system_prompt)] + list(state["messages"])
+    # Ensure content is string and no duplicate system messages
+    messages = _clean_messages(raw_messages)
 
     response = await llm.ainvoke(messages)
 
@@ -93,15 +136,13 @@ async def agent_node(state: AgentState) -> dict:
 def should_continue(state: AgentState) -> str:
     """
     Router: determine the next node after the agent.
-    - If the last message has tool calls → go to tools
-    - Otherwise → end
+    - If the last message has tool calls -> go to tools
+    - Otherwise -> end
     """
     messages = state["messages"]
     last_message = messages[-1]
 
-    # Check if the AI message has tool calls
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        # Safety: prevent infinite tool loops
         if state.get("iteration", 0) >= 10:
             return "end"
         return "tools"
@@ -109,7 +150,6 @@ def should_continue(state: AgentState) -> str:
     return "end"
 
 
-# The ToolNode handles tool execution automatically
 def create_tool_node(enabled_tools: list) -> ToolNode:
     """Create a ToolNode from the enabled tool names."""
     tools = get_tools(enabled_tools)

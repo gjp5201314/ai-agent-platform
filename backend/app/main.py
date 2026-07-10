@@ -90,7 +90,7 @@ async def _seed_default_agent():
                 ),
                 temperature=0.7,
                 max_tokens=4096,
-                enabled_tools=["rag"],
+                enabled_tools=["rag", "web_search", "calculator", "get_current_time"],
                 is_default=True,
             )
             db.add(default_agent)
