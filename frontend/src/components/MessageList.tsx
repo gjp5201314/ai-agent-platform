@@ -56,7 +56,7 @@ function MessageItem({ message, isStreaming }: { message: Message; isStreaming: 
       {/* Message bubble */}
       <div className={`flex flex-col gap-1 max-w-[75%] ${isUser ? "items-end" : "items-start"}`}>
         {/* Tool call indicator */}
-        {message.metadata?.toolCall && (
+        {typeof message.metadata?.toolCall === "string" && message.metadata.toolCall.length > 0 && (
           <div className="flex items-center gap-2 text-xs text-slate-400 px-3 py-1 bg-slate-50 rounded-lg">
             <span className="animate-spin">⚙️</span>
             正在调用工具: {String(message.metadata.toolCall)}
