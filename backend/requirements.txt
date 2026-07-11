@@ -38,3 +38,6 @@ orjson>=3.10.0
 
 # ===== Observability =====
 langsmith>=0.1.140
+
+# ===== Long-term Memory =====
+mem0ai>=0.1.0

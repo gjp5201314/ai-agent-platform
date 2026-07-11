@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Upload, FileText, Trash2, Database } from "lucide-react";
 import { api } from "../api/client";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import type { Document } from "../types";
 
@@ -73,22 +75,28 @@ export function DocumentUpload({ onClose }: Props) {
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-lg h-[70vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-5 py-4 border-b flex-shrink-0">
+      <DialogContent className="!max-w-2xl w-[90vw] h-[80vh] p-0 gap-0 flex flex-col bg-surface-900 border border-white/[0.08]">
+        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Database size={18} className="text-primary" />
             知识库管理
           </DialogTitle>
+          <DialogDescription className="text-xs">
+            上传文档构建 RAG 知识库，让 AI 基于文档内容回答
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-4 px-5 py-2.5 border-b text-xs text-muted-foreground">
-          <span>{stats.document_count} 文档</span>
+        <div className="flex items-center gap-5 px-6 py-2.5 border-b text-xs text-muted-foreground flex-shrink-0">
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+            {stats.document_count} 文档
+          </span>
           <span>{stats.chunk_count} 分块</span>
           <span>{stats.total_size_mb} MB</span>
         </div>
 
         {/* Upload area */}
-        <div className="px-5 py-4 border-b">
+        <div className="px-6 py-4 border-b flex-shrink-0">
           <input
             ref={fileInputRef}
             type="file"
@@ -102,16 +110,18 @@ export function DocumentUpload({ onClose }: Props) {
             disabled={uploading}
             className="w-full border border-dashed rounded-xl py-8 flex flex-col items-center gap-3
                        text-muted-foreground hover:text-primary hover:border-primary/30
-                       bg-muted/30 hover:bg-muted/50 transition-all disabled:opacity-50"
+                       bg-muted/20 hover:bg-muted/40 transition-all disabled:opacity-50"
           >
             {uploading ? (
               <>
-                <div className="w-8 h-8 border-2 border-primary/50 border-t-transparent rounded-full animate-spin" />
+                <div className="w-7 h-7 border-2 border-primary/50 border-t-transparent rounded-full animate-spin" />
                 <span className="text-sm">正在上传和处理...</span>
               </>
             ) : (
               <>
-                <Upload size={24} />
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Upload size={20} className="text-primary" />
+                </div>
                 <div className="text-center">
                   <p className="text-sm font-medium">点击上传文件</p>
                   <p className="text-xs mt-1 opacity-60">支持 PDF, DOCX, TXT, MD</p>
@@ -122,59 +132,62 @@ export function DocumentUpload({ onClose }: Props) {
         </div>
 
         {/* Document list */}
-        <div className="flex-1 overflow-y-auto p-5">
-          {documents.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText size={32} className="mx-auto mb-3 opacity-15" />
-              <p className="text-sm">还没有上传任何文档</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center gap-3 rounded-lg border bg-card/50 p-3
-                             hover:bg-card/80 transition-colors group"
-                >
-                  <div className="w-9 h-9 rounded-md bg-muted border flex items-center justify-center flex-shrink-0">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                      {getFileIcon(doc.file_type)}
-                    </span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{doc.filename}</p>
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
-                      <span>{formatSize(doc.file_size)}</span>
-                      <span>{doc.chunk_count} 分块</span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                          doc.status === "ready"
-                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                            : doc.status === "processing"
-                            ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                            : "bg-destructive/10 text-destructive border border-destructive/20"
-                        }`}
-                      >
-                        {doc.status === "ready" ? "就绪" : doc.status === "processing" ? "处理中" : "错误"}
+        <ScrollArea className="flex-1">
+          <div className="p-6">
+            {documents.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <FileText size={32} className="mx-auto mb-3 opacity-15" />
+                <p className="text-sm">还没有上传任何文档</p>
+                <p className="text-xs mt-1 opacity-60">上传文档后即可开启 RAG 知识库问答</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center gap-3 rounded-lg border bg-card/50 p-3
+                               hover:bg-card/80 transition-colors group"
+                  >
+                    <div className="w-10 h-10 rounded-md bg-muted border flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                        {getFileIcon(doc.file_type)}
                       </span>
                     </div>
-                  </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 text-muted-foreground
-                               hover:text-destructive"
-                    onClick={() => handleDelete(doc.id)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{doc.filename}</p>
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
+                        <span>{formatSize(doc.file_size)}</span>
+                        <span>{doc.chunk_count} 分块</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            doc.status === "ready"
+                              ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                              : doc.status === "processing"
+                              ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                              : "bg-destructive/10 text-destructive border border-destructive/20"
+                          }`}
+                        >
+                          {doc.status === "ready" ? "就绪" : doc.status === "processing" ? "处理中" : "错误"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 text-muted-foreground
+                                 hover:text-destructive"
+                      onClick={() => handleDelete(doc.id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

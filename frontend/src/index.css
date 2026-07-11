@@ -2,6 +2,12 @@
 @import "shadcn/tailwind.css";
 @import "tailwindcss";
 
+/* ===== Dialog overlay: darken for readability ===== */
+[data-slot="dialog-overlay"] {
+  background-color: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(4px);
+}
+
 /* ===== Base ===== */
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -13,8 +19,8 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: #0a0a1a;
-  color: #e0e0e0;
+  background: #0b0b16;
+  color: #e6e8ee;
   overflow: hidden;
 }
 
@@ -43,16 +49,16 @@ body {
 /* ===== Glass Panel Utility ===== */
 @layer components {
   .glass-panel {
-    @apply bg-surface-600/70 backdrop-blur-xl border border-white/[0.06];
+    @apply bg-surface-700/80 backdrop-blur-xl border border-white/[0.10];
   }
 
   .glass-panel-strong {
-    @apply bg-surface-600/90 backdrop-blur-2xl border border-white/[0.08];
+    @apply bg-surface-800/95 backdrop-blur-2xl border border-white/[0.12];
   }
 
   .glass-input {
-    @apply bg-surface-700/80 backdrop-blur-md border border-white/[0.08]
-           focus:border-cyber-400/50 focus:ring-1 focus:ring-cyber-400/30
+    @apply bg-surface-800/80 backdrop-blur-md border border-white/[0.15]
+           focus:border-cyber-400/60 focus:ring-1 focus:ring-cyber-400/40
            transition-all duration-300;
   }
 }
@@ -134,7 +140,7 @@ body {
   color: #d1d5db;
 }
 .markdown-body p {
-  margin-bottom: 0.75rem;
+  /* margin-bottom: 0.75rem; */
 }
 .markdown-body h1,
 .markdown-body h2,
@@ -318,38 +324,57 @@ input[type="checkbox"] {
       "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   }
   :root {
-    --background: oklch(0.11 0.02 260);
-    --foreground: oklch(0.92 0 0);
-    --card: oklch(0.14 0.02 260);
-    --card-foreground: oklch(0.92 0 0);
-    --popover: oklch(0.16 0.02 260);
-    --popover-foreground: oklch(0.92 0 0);
-    --primary: oklch(0.68 0.12 200);
-    --primary-foreground: oklch(0.14 0.02 260);
-    --secondary: oklch(0.18 0.02 260);
-    --secondary-foreground: oklch(0.92 0 0);
-    --muted: oklch(0.16 0.02 260);
-    --muted-foreground: oklch(0.55 0.02 260);
-    --accent: oklch(0.52 0.18 275);
-    --accent-foreground: oklch(0.95 0 0);
-    --destructive: oklch(0.58 0.22 0);
-    --border: oklch(1 0 0 / 0.06);
-    --input: oklch(1 0 0 / 0.08);
-    --ring: oklch(0.68 0.12 200);
-    --chart-1: oklch(0.68 0.12 200);
-    --chart-2: oklch(0.52 0.18 275);
-    --chart-3: oklch(0.58 0.22 0);
-    --chart-4: oklch(0.75 0.15 140);
-    --chart-5: oklch(0.70 0.14 75);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.11 0.02 260);
-    --sidebar-foreground: oklch(0.92 0 0);
-    --sidebar-primary: oklch(0.68 0.12 200);
-    --sidebar-primary-foreground: oklch(0.14 0.02 260);
-    --sidebar-accent: oklch(0.18 0.02 260);
-    --sidebar-accent-foreground: oklch(0.92 0 0);
-    --sidebar-border: oklch(1 0 0 / 0.06);
-    --sidebar-ring: oklch(0.68 0.12 200);
+    /* === Backgrounds (dark, with enough contrast) === */
+    --background: #0b0b16;
+    --foreground: #e6e8ee;
+    --card: #14141f;
+    --card-foreground: #e6e8ee;
+    --popover: #1a1a28;
+    --popover-foreground: #e6e8ee;
+
+    /* === Primary: bright cyan === */
+    --primary: #00e5ff;
+    --primary-foreground: #0b0b16;
+
+    /* === Secondary: subtle dark === */
+    --secondary: #1e1e2e;
+    --secondary-foreground: #e6e8ee;
+
+    /* === Muted === */
+    --muted: #1a1a26;
+    --muted-foreground: #9098a8;
+
+    /* === Accent: bright purple === */
+    --accent: #a78bff;
+    --accent-foreground: #0b0b16;
+
+    /* === Destructive === */
+    --destructive: #ff4d6d;
+    --destructive-foreground: #ffffff;
+
+    /* === Borders & inputs (more visible) === */
+    --border: rgba(255, 255, 255, 0.12);
+    --input: rgba(255, 255, 255, 0.10);
+    --ring: #00e5ff;
+
+    /* === Charts === */
+    --chart-1: #00e5ff;
+    --chart-2: #a78bff;
+    --chart-3: #ff4d6d;
+    --chart-4: #6ee7b7;
+    --chart-5: #fbbf24;
+
+    --radius: 0.5rem;
+
+    /* === Sidebar === */
+    --sidebar: #0b0b16;
+    --sidebar-foreground: #e6e8ee;
+    --sidebar-primary: #00e5ff;
+    --sidebar-primary-foreground: #0b0b16;
+    --sidebar-accent: #1e1e2e;
+    --sidebar-accent-foreground: #e6e8ee;
+    --sidebar-border: rgba(255, 255, 255, 0.12);
+    --sidebar-ring: #00e5ff;
   }
   * {
     border-color: var(--border);
@@ -370,33 +395,33 @@ input[type="checkbox"] {
   --color-cyber-100: #b2ebf2;
   --color-cyber-200: #80deea;
   --color-cyber-300: #4dd0e1;
-  --color-cyber-400: #26c6da;
-  --color-cyber-500: #00bcd4;
-  --color-cyber-600: #00acc1;
+  --color-cyber-400: #22d3ee;
+  --color-cyber-500: #00e5ff;
+  --color-cyber-600: #00bcd4;
   --color-cyber-700: #0097a7;
   --color-cyber-800: #00838f;
   --color-cyber-900: #006064;
 
-  --color-neon-400: #7c4dff;
-  --color-neon-500: #651fff;
-  --color-neon-600: #6200ea;
-  --color-neon-700: #5e35b1;
+  --color-neon-400: #a78bff;
+  --color-neon-500: #8b5cf6;
+  --color-neon-600: #7c3aed;
+  --color-neon-700: #6d28d9;
 
-  --color-surface-900: #0a0a1a;
-  --color-surface-800: #0f0f23;
-  --color-surface-700: #13132b;
-  --color-surface-600: #1a1a2e;
-  --color-surface-500: #1e1e36;
-  --color-surface-400: #252542;
-  --color-surface-300: #2d2d4a;
+  --color-surface-900: #0b0b16;
+  --color-surface-800: #11111c;
+  --color-surface-700: #181825;
+  --color-surface-600: #1f1f2e;
+  --color-surface-500: #262638;
+  --color-surface-400: #2e2e42;
+  --color-surface-300: #383850;
 
-  --color-accent-green: #00e676;
-  --color-accent-pink: #ff4081;
-  --color-accent-amber: #ffd740;
+  --color-accent-green: #6ee7b7;
+  --color-accent-pink: #ff4d6d;
+  --color-accent-amber: #fbbf24;
 
-  --background-image-cyber-grid: linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
-  --background-image-cyber-gradient: linear-gradient(135deg, #0a0a1a 0%, #0f0f23 30%, #13132b 60%, #0a0a1a 100%);
-  --background-image-glass-gradient: linear-gradient(135deg, rgba(26, 26, 46, 0.8), rgba(19, 19, 43, 0.6));
+  --background-image-cyber-grid: linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
+  --background-image-cyber-gradient: linear-gradient(135deg, #0b0b16 0%, #11111c 30%, #181825 60%, #0b0b16 100%);
+  --background-image-glass-gradient: linear-gradient(135deg, rgba(31, 31, 46, 0.9), rgba(24, 24, 37, 0.7));
   --background-image-neon-gradient: linear-gradient(135deg, #00e5ff 0%, #7c4dff 50%, #ff4081 100%);
   --background-image-card-gradient: linear-gradient(135deg, rgba(26, 26, 46, 0.9), rgba(30, 30, 54, 0.7));
 

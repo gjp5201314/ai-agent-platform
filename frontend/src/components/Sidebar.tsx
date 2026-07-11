@@ -120,19 +120,6 @@ export function Sidebar({
                     ))
                   )}
                 </div>
-                <Separator />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    onOpenSettings();
-                    setAgentMenuOpen(false);
-                  }}
-                  className="w-full justify-start gap-2 text-xs text-muted-foreground"
-                >
-                  <SettingsIcon size={12} />
-                  管理 Agent
-                </Button>
               </div>
             </>
           )}

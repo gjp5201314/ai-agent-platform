@@ -30,6 +30,7 @@ from app.schemas import ChatRequest
 from app.deps import get_default_agent
 from app.agent.graph import run_agent
 from app.config import settings
+from app.core.memory import search_memories, add_memories
 
 router = APIRouter()
 
@@ -263,10 +264,33 @@ async def _prepare_chat(request: ChatRequest):
 
         await db.commit()
 
-        # 6. Build agent config dict
+        # 6. Search long-term memories
+        memory_context = ""
+        try:
+            memories = await search_memories(request.message, user_id=conv.id)
+            if memories:
+                memory_lines = []
+                for i, mem in enumerate(memories, 1):
+                    content = mem.get("memory", "") or mem.get("content", "")
+                    if content:
+                        memory_lines.append(f"{i}. {content}")
+                if memory_lines:
+                    memory_context = "\n\n".join(memory_lines)
+        except Exception as e:
+            print(f"[Chat] Memory search failed: {e}")
+
+        # 7. Build agent config dict
+        system_prompt = agent.system_prompt if agent else "You are a helpful AI assistant."
+        if memory_context:
+            system_prompt += (
+                f"\n\n以下是与当前用户相关的长期记忆（从历史对话中提取）：\n\n"
+                f"{memory_context}\n\n"
+                f"请利用这些记忆来提供更个性化、更连贯的回答。如果记忆与当前问题无关，请忽略。"
+            )
+
         agent_config = {
             "provider": None,
-            "system_prompt": agent.system_prompt if agent else "You are a helpful AI assistant.",
+            "system_prompt": system_prompt,
             "temperature": agent.temperature if agent else 0.7,
             "max_tokens": agent.max_tokens if agent else 4096,
             "enabled_tools": agent.enabled_tools if agent else ["rag"],
@@ -390,6 +414,27 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag):
                             conv.title = first_user.content[:50] + ("..." if len(first_user.content) > 50 else "")
 
                     await db.commit()
+
+                    # Save to long-term memory (Mem0)
+                    try:
+                        ur = await db.execute(
+                            select(Message)
+                            .where(Message.conversation_id == conversation_id)
+                            .where(Message.role == "user")
+                            .order_by(Message.id.desc())
+                            .limit(1)
+                        )
+                        last_user = ur.scalar_one_or_none()
+                        if last_user and full_response:
+                            await add_memories(
+                                [
+                                    {"role": "user", "content": last_user.content},
+                                    {"role": "assistant", "content": full_response},
+                                ],
+                                user_id=conversation_id,
+                            )
+                    except Exception as e:
+                        print(f"[Chat] Memory save failed: {e}")
             except Exception as e:
                 print(f"[Chat] Failed to save assistant message: {e}")
 

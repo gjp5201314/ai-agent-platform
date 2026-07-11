@@ -25,13 +25,13 @@ export function ChatInterface({
   onOpenSidebar,
 }: Props) {
   return (
-    <div className="flex flex-col h-full bg-cyber-gradient relative">
+    <div className="flex flex-col h-full bg-[#0b0b16] relative">
       {/* Animated grid background */}
       <div className="absolute inset-0 bg-cyber-grid-animated pointer-events-none" />
 
       {/* Ambient glow orbs */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyber-400/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-neon-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyber-400/8 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-neon-500/8 rounded-full blur-3xl pointer-events-none" />
 
       {/* Mobile header */}
       <div className="lg:hidden flex items-center gap-3 p-3 glass-panel-strong border-b border-white/[0.06] relative z-10">
