@@ -32,6 +32,7 @@ tiktoken>=0.8.0
 # ===== Config & Utils =====
 pydantic-settings>=2.7.0
 httpx>=0.28.0
+duckduckgo-search>=7.0.0
 python-dotenv>=1.0.1
 orjson>=3.10.0
 

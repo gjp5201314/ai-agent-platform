@@ -1,0 +1,53 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            set -e
+            cd ~/ai-agent-platform
+
+            echo ">>> 拉取最新代码..."
+            git pull origin main
+
+            echo ">>> 重新构建后端镜像（含新依赖）..."
+            docker compose build backend --no-cache
+
+            echo ">>> 重新构建前端镜像..."
+            docker compose build frontend
+
+            echo ">>> 重启服务..."
+            docker compose up -d
+
+            echo ">>> 等待服务就绪..."
+            sleep 5
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo ">>> 后端服务已就绪!"
+                break
+              fi
+              echo ">>> 等待中... ($i/12)"
+              sleep 5
+            done
+
+            echo ">>> 清理旧镜像..."
+            docker image prune -f
+
+            echo ">>> 部署完成!"
+            docker compose ps
