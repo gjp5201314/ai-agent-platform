@@ -5,6 +5,7 @@ import { DocumentUpload } from "./components/DocumentUpload";
 import { Settings } from "./components/Settings";
 import { useChat } from "./hooks/useChat";
 import { api } from "./api/client";
+import { Toaster } from "@/components/ui/sonner";
 import type { Conversation, AgentConfig, Attachment } from "./types";
 
 export default function App() {
@@ -161,6 +162,7 @@ export default function App() {
       </div>
 
       {/* Modals */}
+      <Toaster />
       {showDocuments && <DocumentUpload onClose={() => setShowDocuments(false)} />}
       {showSettings && (
         <Settings

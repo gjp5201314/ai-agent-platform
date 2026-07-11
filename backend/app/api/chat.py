@@ -14,6 +14,7 @@ because FastAPI dependency cleanup may run before streaming completes.
 import json
 import os
 import uuid
+import base64
 import mimetypes
 from datetime import datetime
 
@@ -113,6 +114,33 @@ async def upload_attachment(file: UploadFile = File(...)):
     }
 
 
+def _image_url_to_data(url: str) -> str:
+    """
+    Convert a local /uploads/... URL to a base64 data URL.
+    DashScope (and other remote LLM APIs) cannot access local filesystem paths,
+    so we must inline the image as base64.
+
+    If the URL is already a data: or http(s): URL, return it unchanged.
+    """
+    if url.startswith("data:") or url.startswith("http://") or url.startswith("https://"):
+        return url
+
+    # Resolve local path (strip leading / to make it relative to cwd)
+    local_path = url.lstrip("/")
+    if not os.path.isfile(local_path):
+        # File doesn't exist — return original URL as fallback
+        return url
+
+    mime_type, _ = mimetypes.guess_type(local_path)
+    if not mime_type or not mime_type.startswith("image/"):
+        mime_type = "image/png"  # fallback
+
+    with open(local_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    return f"data:{mime_type};base64,{b64}"
+
+
 def _messages_to_langchain(db_messages: list) -> list:
     """Convert DB Message records to LangChain message objects.
     Supports multimodal content (text + images)."""
@@ -132,7 +160,7 @@ def _messages_to_langchain(db_messages: list) -> list:
                     if att.get("type", "").startswith("image/"):
                         content_parts.append({
                             "type": "image_url",
-                            "image_url": {"url": att["url"]}
+                            "image_url": {"url": _image_url_to_data(att["url"])}
                         })
                 result.append(HumanMessage(content=content_parts))
             elif has_files and msg.content:

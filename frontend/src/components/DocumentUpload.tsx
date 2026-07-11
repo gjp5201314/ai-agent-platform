@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { Upload, FileText, Trash2, X, Database, FileCheck } from "lucide-react";
+import { Upload, FileText, Trash2, Database } from "lucide-react";
 import { api } from "../api/client";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Document } from "../types";
 
 interface Props {
@@ -65,41 +72,23 @@ export function DocumentUpload({ onClose }: Props) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="glass-panel-strong rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col
-                     shadow-glow-neon overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-white/[0.06]">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Database size={18} className="text-cyber-400" />
-              <h2 className="text-lg font-bold text-white">知识库管理</h2>
-            </div>
-            <div className="flex items-center gap-3 text-xs text-white/30">
-              <span className="flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-cyber-400/60" />
-                {stats.document_count} 文档
-              </span>
-              <span>{stats.chunk_count} 分块</span>
-              <span>{stats.total_size_mb} MB</span>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-white/20 hover:text-white/60 transition-colors p-1"
-          >
-            <X size={20} />
-          </button>
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-lg h-[70vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 py-4 border-b flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <Database size={18} className="text-primary" />
+            知识库管理
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex items-center gap-4 px-5 py-2.5 border-b text-xs text-muted-foreground">
+          <span>{stats.document_count} 文档</span>
+          <span>{stats.chunk_count} 分块</span>
+          <span>{stats.total_size_mb} MB</span>
         </div>
 
         {/* Upload area */}
-        <div className="p-5 border-b border-white/[0.06]">
+        <div className="px-5 py-4 border-b">
           <input
             ref={fileInputRef}
             type="file"
@@ -111,24 +100,18 @@ export function DocumentUpload({ onClose }: Props) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="w-full border border-dashed border-white/[0.08] hover:border-cyber-400/30
-                       rounded-xl py-10 flex flex-col items-center gap-3
-                       text-white/20 hover:text-cyber-400/60
-                       bg-surface-800/50 hover:bg-surface-700/50
-                       transition-all duration-300 disabled:opacity-50 group"
+            className="w-full border border-dashed rounded-xl py-8 flex flex-col items-center gap-3
+                       text-muted-foreground hover:text-primary hover:border-primary/30
+                       bg-muted/30 hover:bg-muted/50 transition-all disabled:opacity-50"
           >
             {uploading ? (
               <>
-                <div className="w-8 h-8 border-2 border-cyber-400/50 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm text-white/40">正在上传和处理...</span>
+                <div className="w-8 h-8 border-2 border-primary/50 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">正在上传和处理...</span>
               </>
             ) : (
               <>
-                <div className="w-12 h-12 rounded-xl bg-cyber-400/5 border border-cyber-400/10
-                                flex items-center justify-center group-hover:bg-cyber-400/10
-                                transition-all duration-300">
-                  <Upload size={24} className="group-hover:scale-110 transition-transform duration-300" />
-                </div>
+                <Upload size={24} />
                 <div className="text-center">
                   <p className="text-sm font-medium">点击上传文件</p>
                   <p className="text-xs mt-1 opacity-60">支持 PDF, DOCX, TXT, MD</p>
@@ -139,65 +122,60 @@ export function DocumentUpload({ onClose }: Props) {
         </div>
 
         {/* Document list */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-2">
+        <div className="flex-1 overflow-y-auto p-5">
           {documents.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-700/50
-                              border border-white/[0.04] flex items-center justify-center">
-                <FileText size={28} className="text-white/10" />
-              </div>
-              <p className="text-sm text-white/20">还没有上传任何文档</p>
+            <div className="text-center py-12 text-muted-foreground">
+              <FileText size={32} className="mx-auto mb-3 opacity-15" />
+              <p className="text-sm">还没有上传任何文档</p>
             </div>
           ) : (
-            documents.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex items-center gap-3 rounded-xl border border-white/[0.05]
-                           bg-surface-700/30 p-3.5 hover:bg-surface-700/50
-                           hover:border-white/[0.08] transition-all duration-200 group"
-              >
-                {/* File type badge */}
-                <div className="w-10 h-10 rounded-lg bg-surface-800 border border-white/[0.06]
-                                flex items-center justify-center flex-shrink-0">
-                  <span className="text-[10px] font-bold text-cyber-400/60 uppercase tracking-wider">
-                    {getFileIcon(doc.file_type)}
-                  </span>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-white/70 truncate">{doc.filename}</p>
-                  <div className="flex items-center gap-3 text-[11px] text-white/20 mt-1">
-                    <span>{formatSize(doc.file_size)}</span>
-                    <span>{doc.chunk_count} 分块</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        doc.status === "ready"
-                          ? "bg-accent-green/10 text-accent-green border border-accent-green/20"
-                          : doc.status === "processing"
-                          ? "bg-accent-amber/10 text-accent-amber border border-accent-amber/20"
-                          : "bg-accent-pink/10 text-accent-pink border border-accent-pink/20"
-                      }`}
-                    >
-                      {doc.status === "ready" ? "✓ 就绪" : doc.status === "processing" ? "处理中" : "错误"}
+            <div className="space-y-2">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center gap-3 rounded-lg border bg-card/50 p-3
+                             hover:bg-card/80 transition-colors group"
+                >
+                  <div className="w-9 h-9 rounded-md bg-muted border flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                      {getFileIcon(doc.file_type)}
                     </span>
                   </div>
-                </div>
 
-                <button
-                  onClick={() => handleDelete(doc.id)}
-                  className="text-white/10 hover:text-accent-pink p-1.5
-                             opacity-0 group-hover:opacity-100 transition-all duration-200"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{doc.filename}</p>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
+                      <span>{formatSize(doc.file_size)}</span>
+                      <span>{doc.chunk_count} 分块</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          doc.status === "ready"
+                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                            : doc.status === "processing"
+                            ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                            : "bg-destructive/10 text-destructive border border-destructive/20"
+                        }`}
+                      >
+                        {doc.status === "ready" ? "就绪" : doc.status === "processing" ? "处理中" : "错误"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 text-muted-foreground
+                               hover:text-destructive"
+                    onClick={() => handleDelete(doc.id)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-
-        {/* Footer glow */}
-        <div className="neon-divider mx-5 mb-1" />
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
