@@ -8,12 +8,21 @@ from pydantic import BaseModel, Field
 
 
 # ---- Chat ----
+class AttachmentInfo(BaseModel):
+    id: str
+    filename: str
+    url: str
+    type: str  # image/png, application/pdf, text/plain
+    size: int
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="User message")
     conversation_id: Optional[str] = None
     agent_id: Optional[str] = None
     stream: bool = True
     use_rag: bool = True
+    attachments: List[AttachmentInfo] = []
 
 
 class MessageOut(BaseModel):

@@ -1,6 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Cpu, User, Wrench } from "lucide-react";
+import { Cpu, User, Wrench, FileText } from "lucide-react";
 import type { Message } from "../types";
 
 interface Props {
@@ -103,12 +103,49 @@ function MessageItem({ message, isStreaming }: { message: Message; isStreaming: 
 
         {/* Message bubble */}
         <div
-          className={`rounded-2xl px-4 py-3 ${
+          className={`rounded-2xl px-4 py-3 overflow-hidden ${
             isUser
               ? "bg-gradient-to-br from-cyber-600/60 to-cyber-800/60 border border-cyber-400/20 shadow-glow-cyan"
               : "glass-panel border-white/[0.06]"
           }`}
         >
+          {/* Attachments display */}
+          {message.metadata?.attachments && message.metadata.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {message.metadata.attachments.map((att) => (
+                <div
+                  key={att.id}
+                  className={`rounded-lg overflow-hidden border border-white/[0.08] ${
+                    att.type.startsWith("image/") ? "w-24 h-24" : ""
+                  }`}
+                >
+                  {att.type.startsWith("image/") ? (
+                    <img
+                      src={att.url}
+                      alt={att.filename}
+                      className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                      onClick={() => window.open(att.url, "_blank")}
+                    />
+                  ) : (
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3 py-2 text-xs
+                                 bg-surface-800/50 hover:bg-surface-800
+                                 transition-colors min-w-[120px]"
+                    >
+                      <FileText size={14} className="text-cyber-400/60 flex-shrink-0" />
+                      <span className="text-white/50 truncate max-w-[100px]">
+                        {att.filename}
+                      </span>
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {message.content ? (
             <div className="markdown-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { api } from "../api/client";
-import type { Message, Source, SSEEvent } from "../types";
+import type { Message, Source, Attachment, SSEEvent } from "../types";
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -10,9 +10,13 @@ export function useChat() {
   const abortRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
-    async (content: string, agentId: string | null, useRag: boolean) => {
+    async (content: string, agentId: string | null, useRag: boolean, attachments: Attachment[] = []) => {
       // Add user message
-      const userMsg: Message = { role: "user", content };
+      const userMsg: Message = {
+        role: "user",
+        content,
+        metadata: attachments.length ? { attachments } : undefined,
+      };
       setMessages((prev) => [...prev, userMsg]);
       setIsStreaming(true);
       setSources([]);
@@ -25,10 +29,9 @@ export function useChat() {
         let fullResponse = "";
         let receivedSources: Source[] = [];
 
-        for await (const event of api.streamChat(content, conversationId, agentId, useRag)) {
+        for await (const event of api.streamChat(content, conversationId, agentId, useRag, attachments)) {
           switch (event.type) {
             case "conversation_id":
-              // Backend sends the conversation ID as the first event
               if (event.conversation_id) {
                 setConversationId(event.conversation_id);
               }
@@ -50,7 +53,6 @@ export function useChat() {
               });
               break;
             case "tool_start":
-              // Show tool call indicator
               setMessages((prev) => {
                 const updated = [...prev];
                 updated[updated.length - 1] = {
@@ -71,7 +73,7 @@ export function useChat() {
               }
               break;
             case "error":
-              fullResponse = `⚠️ ${event.content}`;
+              fullResponse = `\u26a0\ufe0f ${event.content}`;
               setMessages((prev) => {
                 const updated = [...prev];
                 updated[updated.length - 1] = {
@@ -89,7 +91,7 @@ export function useChat() {
           if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
             updated[updated.length - 1] = {
               role: "assistant",
-              content: `⚠️ 发送失败: ${(err as Error).message}`,
+              content: `\u26a0\ufe0f 发送失败: ${(err as Error).message}`,
             };
           }
           return updated;

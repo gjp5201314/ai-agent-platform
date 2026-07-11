@@ -5,10 +5,11 @@ import { DocumentUpload } from "./components/DocumentUpload";
 import { Settings } from "./components/Settings";
 import { useChat } from "./hooks/useChat";
 import { api } from "./api/client";
-import type { Conversation, AgentConfig } from "./types";
+import type { Conversation, AgentConfig, Attachment } from "./types";
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [showDocuments, setShowDocuments] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -34,29 +35,44 @@ export default function App() {
     }
   }, []);
 
-  const loadDefaultAgent = useCallback(async () => {
+  const loadAgents = useCallback(async () => {
     try {
-      const agents = await api.listAgents();
-      const def = agents.find((a) => a.is_default) || agents[0];
-      if (def) {
+      const agentList = await api.listAgents();
+      setAgents(agentList);
+      const def = agentList.find((a) => a.is_default) || agentList[0];
+      if (def && !activeAgent) {
         setActiveAgent(def);
-        // Default to using RAG if the agent has it enabled
         setUseRag(def.enabled_tools.includes("rag"));
       }
     } catch (err) {
-      console.error("Failed to load agent:", err);
+      console.error("Failed to load agents:", err);
     }
   }, []);
 
   useEffect(() => {
     loadConversations();
-    loadDefaultAgent();
-  }, [loadConversations, loadDefaultAgent]);
+    loadAgents();
+  }, [loadConversations, loadAgents]);
+
+  // Refresh agents when Settings closes (user may have created/deleted agents)
+  const handleCloseSettings = useCallback(() => {
+    setShowSettings(false);
+    loadAgents();
+  }, [loadAgents]);
+
+  const handleSwitchAgent = useCallback(
+    (agent: AgentConfig) => {
+      setActiveAgent(agent);
+      setUseRag(agent.enabled_tools.includes("rag"));
+      // Start a fresh conversation when switching agent
+      newConversation();
+    },
+    [newConversation]
+  );
 
   const handleSend = useCallback(
-    (message: string) => {
-      sendMessage(message, activeAgent?.id || null, useRag);
-      // Refresh conversation list after sending
+    (message: string, attachments: Attachment[] = []) => {
+      sendMessage(message, activeAgent?.id || null, useRag, attachments);
       setTimeout(loadConversations, 500);
     },
     [sendMessage, activeAgent, useRag, loadConversations]
@@ -96,10 +112,13 @@ export default function App() {
       <div className="hidden lg:block flex-shrink-0">
         <Sidebar
           conversations={conversations}
+          agents={agents}
+          activeAgent={activeAgent}
           activeId={conversationId}
           onSelect={handleSelectConversation}
           onNew={handleNewConversation}
           onDelete={handleDeleteConversation}
+          onSwitchAgent={handleSwitchAgent}
           onOpenDocuments={() => setShowDocuments(true)}
           onOpenSettings={() => setShowSettings(true)}
         />
@@ -112,10 +131,13 @@ export default function App() {
           <div className="absolute left-0 top-0 bottom-0">
             <Sidebar
               conversations={conversations}
+              agents={agents}
+              activeAgent={activeAgent}
               activeId={conversationId}
               onSelect={handleSelectConversation}
               onNew={handleNewConversation}
               onDelete={handleDeleteConversation}
+              onSwitchAgent={handleSwitchAgent}
               onOpenDocuments={() => { setShowDocuments(true); setShowSidebar(false); }}
               onOpenSettings={() => { setShowSettings(true); setShowSidebar(false); }}
               onClose={() => setShowSidebar(false)}
@@ -129,6 +151,7 @@ export default function App() {
         <ChatInterface
           messages={messages}
           isStreaming={isStreaming}
+          activeAgent={activeAgent}
           onSend={handleSend}
           onStop={stopStreaming}
           useRag={useRag}
@@ -141,10 +164,12 @@ export default function App() {
       {showDocuments && <DocumentUpload onClose={() => setShowDocuments(false)} />}
       {showSettings && (
         <Settings
-          onClose={() => setShowSettings(false)}
+          onClose={handleCloseSettings}
           onAgentChange={(agent) => {
-            setActiveAgent(agent);
-            setUseRag(agent?.enabled_tools.includes("rag") ?? true);
+            if (agent) {
+              setActiveAgent(agent);
+              setUseRag(agent.enabled_tools.includes("rag"));
+            }
           }}
         />
       )}

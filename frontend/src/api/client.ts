@@ -4,6 +4,7 @@ import type {
   AgentConfig,
   ToolInfo,
   SSEEvent,
+  Attachment,
 } from "../types";
 
 const API_BASE = "/api";
@@ -31,7 +32,8 @@ export async function* streamChat(
   message: string,
   conversationId: string | null,
   agentId: string | null,
-  useRag: boolean
+  useRag: boolean,
+  attachments: Attachment[] = []
 ): AsyncGenerator<SSEEvent> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: "POST",
@@ -42,6 +44,7 @@ export async function* streamChat(
       agent_id: agentId,
       stream: true,
       use_rag: useRag,
+      attachments,
     }),
   });
 
@@ -82,6 +85,21 @@ export async function* streamChat(
 export const api = {
   // Chat
   streamChat,
+
+  // File upload for chat attachments
+  uploadAttachment: async (file: File): Promise<Attachment> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/chat/upload`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
 
   // Conversations
   listConversations: () =>

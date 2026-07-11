@@ -1,13 +1,18 @@
 import { useState } from "react";
-import { Plus, MessageSquare, Trash2, FileText, Settings as SettingsIcon, X, Search, Zap } from "lucide-react";
-import type { Conversation } from "../types";
+import {
+  Plus, MessageSquare, Trash2, FileText, Settings as SettingsIcon, X, Search, Zap, Cpu, ChevronDown
+} from "lucide-react";
+import type { Conversation, AgentConfig } from "../types";
 
 interface Props {
   conversations: Conversation[];
+  agents: AgentConfig[];
+  activeAgent: AgentConfig | null;
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onSwitchAgent: (agent: AgentConfig) => void;
   onOpenDocuments: () => void;
   onOpenSettings: () => void;
   onClose?: () => void;
@@ -15,15 +20,19 @@ interface Props {
 
 export function Sidebar({
   conversations,
+  agents,
+  activeAgent,
   activeId,
   onSelect,
   onNew,
   onDelete,
+  onSwitchAgent,
   onOpenDocuments,
   onOpenSettings,
   onClose,
 }: Props) {
   const [search, setSearch] = useState("");
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
 
   const filtered = conversations.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
@@ -56,17 +65,95 @@ export function Sidebar({
           )}
         </div>
 
+        {/* Agent Selector */}
+        <div className="relative">
+          <button
+            onClick={() => setAgentMenuOpen(!agentMenuOpen)}
+            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2.5
+                       bg-surface-700/50 border border-white/[0.06]
+                       hover:border-cyber-400/20 transition-all duration-200
+                       text-left group"
+          >
+            <div className="w-5 h-5 rounded bg-gradient-to-br from-cyber-400/20 to-neon-500/20
+                            border border-cyber-400/20 flex items-center justify-center flex-shrink-0">
+              <Cpu size={11} className="text-cyber-400" />
+            </div>
+            <span className="flex-1 text-xs text-white/70 truncate">
+              {activeAgent?.name || "选择 Agent"}
+            </span>
+            <ChevronDown
+              size={14}
+              className={`text-white/30 transition-transform duration-200 ${
+                agentMenuOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {/* Dropdown */}
+          {agentMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setAgentMenuOpen(false)} />
+              <div className="absolute left-0 right-0 top-full mt-1 z-20
+                              glass-panel-strong rounded-lg border border-white/[0.08]
+                              shadow-glow-cyan overflow-hidden">
+                <div className="max-h-48 overflow-y-auto py-1">
+                  {agents.length === 0 ? (
+                    <p className="text-xs text-white/20 px-3 py-2 text-center">暂无 Agent</p>
+                  ) : (
+                    agents.map((agent) => (
+                      <button
+                        key={agent.id}
+                        onClick={() => {
+                          onSwitchAgent(agent);
+                          setAgentMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs
+                                    transition-all duration-150 ${
+                          activeAgent?.id === agent.id
+                            ? "bg-cyber-400/10 text-cyber-300"
+                            : "text-white/50 hover:text-white/80 hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <Cpu size={12} />
+                        <span className="flex-1 truncate">{agent.name}</span>
+                        {agent.is_default && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded
+                                           bg-accent-green/10 text-accent-green
+                                           border border-accent-green/20">默认</span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+                <div className="border-t border-white/[0.06] p-1">
+                  <button
+                    onClick={() => {
+                      onOpenSettings();
+                      setAgentMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs
+                               text-white/30 hover:text-white/60 transition-colors"
+                  >
+                    <SettingsIcon size={12} />
+                    管理 Agent
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* New chat button */}
         <button
           onClick={onNew}
-          className="w-full flex items-center justify-center gap-2 rounded-lg
+          className="w-full flex items-center justify-center gap-2 rounded-lg mt-2.5
                      bg-gradient-to-r from-cyber-500/20 to-neon-500/20
                      border border-cyber-400/20 hover:border-cyber-400/40
-                     text-cyber-300 hover:text-cyber-200 px-4 py-2.5 text-sm font-medium
+                     text-cyber-300 hover:text-cyber-200 px-4 py-2 text-sm font-medium
                      transition-all duration-300 hover:shadow-glow-cyan
                      group"
         >
-          <Plus size={16} className="group-hover:rotate-90 transition-transform duration-300" />
+          <Plus size={15} className="group-hover:rotate-90 transition-transform duration-300" />
           <span>新对话</span>
         </button>
       </div>

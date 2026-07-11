@@ -6,6 +6,7 @@ import contextlib
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
@@ -31,6 +32,8 @@ async def lifespan(app: FastAPI):
     # Warm up Redis
     redis = await get_redis()
     await redis.ping()
+    # Ensure upload directory exists
+    os.makedirs(settings.upload_dir, exist_ok=True)
     print(f"[Startup] Database initialized, Redis connected. Provider: {settings.llm_provider}")
 
     yield
@@ -65,6 +68,9 @@ app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
 app.include_router(conversations.router, prefix="/api/conversations", tags=["conversations"])
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
+
+# Serve uploaded files
+app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 
 async def _seed_default_agent():

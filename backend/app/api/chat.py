@@ -1,14 +1,23 @@
 """
-Chat endpoint with SSE streaming.
+Chat endpoint with SSE streaming and file upload support.
 This is the main interaction point: POST /api/chat with a message,
 returns a Server-Sent Events stream of agent responses.
+
+Supports:
+- Text messages
+- Image attachments (JPEG, PNG, GIF, WebP) → multimodal vision model
+- File attachments (PDF, TXT, code files, etc.) → content extracted and injected
 
 IMPORTANT: For streaming, we manage the DB session inside the generator
 because FastAPI dependency cleanup may run before streaming completes.
 """
 import json
+import os
+import uuid
+import mimetypes
+from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,26 +28,158 @@ from app.models import Conversation, Message, AgentConfig
 from app.schemas import ChatRequest
 from app.deps import get_default_agent
 from app.agent.graph import run_agent
+from app.config import settings
 
 router = APIRouter()
 
+ALLOWED_IMAGE_EXT = set(settings.allowed_image_types.split(","))
+ALLOWED_FILE_EXT = set(settings.allowed_file_types.split(","))
+MAX_UPLOAD_SIZE = settings.max_upload_size_mb * 1024 * 1024
+
+
+def _extract_text_from_bytes(file_bytes: bytes, filename: str) -> str:
+    """Extract text content from common file types for injection into chat."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext in ("txt", "md", "csv", "py", "js", "ts", "json", "yaml", "yml",
+               "xml", "html", "css", "sql", "log", "env", "cfg", "ini", "toml"):
+        try:
+            return file_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                return file_bytes.decode("gbk")
+            except UnicodeDecodeError:
+                return f"[二进制文件，无法提取文本: {filename}]"
+
+    if ext == "pdf":
+        try:
+            from app.rag.chunker import extract_text_from_bytes as extract_pdf
+            return extract_pdf(file_bytes, "pdf")
+        except Exception:
+            return f"[PDF 解析失败: {filename}]"
+
+    if ext == "docx":
+        try:
+            from app.rag.chunker import extract_text_from_bytes as extract_docx
+            return extract_docx(file_bytes, "docx")
+        except Exception:
+            return f"[DOCX 解析失败: {filename}]"
+
+    return f"[不支持的文件类型: {filename}]"
+
+
+@router.post("/upload")
+async def upload_attachment(file: UploadFile = File(...)):
+    """
+    Upload a file attachment for chat (images, documents, code files).
+    Returns attachment info to include in ChatRequest.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_IMAGE_EXT and ext not in ALLOWED_FILE_EXT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: .{ext}. Allowed: {','.join(ALLOWED_IMAGE_EXT | ALLOWED_FILE_EXT)}"
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large ({len(file_bytes)} bytes). Max: {MAX_UPLOAD_SIZE} bytes"
+        )
+
+    # Generate unique filename
+    unique_name = f"{uuid.uuid4().hex}.{ext}"
+    timestamp = datetime.now().strftime("%Y%m")
+    sub_dir = os.path.join(settings.upload_dir, timestamp)
+    os.makedirs(sub_dir, exist_ok=True)
+
+    file_path = os.path.join(sub_dir, unique_name)
+    with open(file_path, "wb") as f:
+        f.write(file_bytes)
+
+    mime_type, _ = mimetypes.guess_type(file.filename)
+    url = f"/uploads/{timestamp}/{unique_name}"
+
+    return {
+        "id": unique_name.rsplit(".", 1)[0],
+        "filename": file.filename,
+        "url": url,
+        "type": mime_type or "application/octet-stream",
+        "size": len(file_bytes),
+    }
+
 
 def _messages_to_langchain(db_messages: list) -> list:
-    """Convert DB Message records to LangChain message objects."""
+    """Convert DB Message records to LangChain message objects.
+    Supports multimodal content (text + images)."""
     result = []
     for msg in db_messages:
+        attachments = (msg.metadata_ or {}).get("attachments", [])
+
         if msg.role == "user":
-            result.append(HumanMessage(content=msg.content))
+            # Build multimodal content if there are image attachments
+            has_images = any(a.get("type", "").startswith("image/") for a in attachments)
+            has_files = any(not a.get("type", "").startswith("image/") for a in attachments)
+
+            if has_images and msg.content:
+                # Multimodal: text + images
+                content_parts = [{"type": "text", "text": msg.content}]
+                for att in attachments:
+                    if att.get("type", "").startswith("image/"):
+                        content_parts.append({
+                            "type": "image_url",
+                            "image_url": {"url": att["url"]}
+                        })
+                result.append(HumanMessage(content=content_parts))
+            elif has_files and msg.content:
+                # Files with extracted text already embedded in message.content
+                result.append(HumanMessage(content=msg.content))
+            else:
+                result.append(HumanMessage(content=msg.content))
+
         elif msg.role == "assistant":
             result.append(AIMessage(content=msg.content))
+
     return result
+
+
+def _build_user_message_content(request: ChatRequest) -> str:
+    """
+    Build the full user message content, including text extracted from attachments.
+    For images, keep them as separate multimodal parts (handled in _messages_to_langchain).
+    For text-based files, extract and inject directly into the message text.
+    """
+    content = request.message
+
+    file_attachments = [a for a in request.attachments
+                        if not (a.type or "").startswith("image/")]
+
+    if file_attachments:
+        content += "\n\n--- 附件内容 ---\n"
+        for att in file_attachments:
+            file_path = att["url"].lstrip("/")
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, "rb") as f:
+                        file_bytes = f.read()
+                    text = _extract_text_from_bytes(file_bytes, att["filename"])
+                    content += f"\n[文件: {att['filename']}]\n{text}\n"
+                except Exception as e:
+                    content += f"\n[文件读取失败: {att['filename']}: {e}]\n"
+            else:
+                content += f"\n[文件未找到: {att['filename']}]\n"
+
+    return content
 
 
 async def _prepare_chat(request: ChatRequest):
     """
     Execute pre-stream DB operations: get/create conversation, save user message,
     load history, and build agent config.
-    Returns all data needed for the streaming phase.
     """
     async with async_session_factory() as db:
         # 1. Get or create conversation
@@ -50,7 +191,7 @@ async def _prepare_chat(request: ChatRequest):
             if not conv:
                 raise HTTPException(status_code=404, detail="Conversation not found")
         else:
-            conv = Conversation(id=str(__import__("uuid").uuid4()), title="New Conversation")
+            conv = Conversation(id=str(uuid.uuid4()), title="New Conversation")
             if request.agent_id:
                 conv.agent_id = request.agent_id
             db.add(conv)
@@ -66,16 +207,24 @@ async def _prepare_chat(request: ChatRequest):
         if not agent:
             agent = await get_default_agent(db)
 
-        # 3. Save user message
+        # 3. Build full message content (text + extracted file contents)
+        full_content = _build_user_message_content(request)
+        has_images = any(
+            (a.type or "").startswith("image/") for a in request.attachments
+        )
+
+        # 4. Save user message with attachment metadata
         user_msg = Message(
             conversation_id=conv.id,
             role="user",
-            content=request.message,
+            content=full_content,
+            metadata_={"attachments": [a.model_dump() for a in request.attachments]}
+            if request.attachments else {},
         )
         db.add(user_msg)
         await db.flush()
 
-        # 4. Load conversation history
+        # 5. Load conversation history
         msgs_result = await db.execute(
             select(Message)
             .where(Message.conversation_id == conv.id)
@@ -86,7 +235,7 @@ async def _prepare_chat(request: ChatRequest):
 
         await db.commit()
 
-        # 5. Build agent config dict
+        # 6. Build agent config dict
         agent_config = {
             "provider": None,
             "system_prompt": agent.system_prompt if agent else "You are a helpful AI assistant.",
@@ -95,6 +244,7 @@ async def _prepare_chat(request: ChatRequest):
             "enabled_tools": agent.enabled_tools if agent else ["rag"],
             "rag_top_k": agent.rag_top_k if agent else 4,
             "rag_similarity_threshold": agent.rag_similarity_threshold if agent else 0.5,
+            "has_images": has_images,
         }
 
         use_rag = request.use_rag and "rag" in (agent.enabled_tools if agent else ["rag"])
@@ -106,18 +256,15 @@ async def _prepare_chat(request: ChatRequest):
 @router.post("/")
 async def chat(request: ChatRequest):
     """
-    Send a message and receive a streaming AI response.
+    Send a message (text + optional attachments) and receive streaming AI response.
+
+    Attachments support:
+    - Images (png, jpg, gif, webp): sent to vision model for analysis
+    - Files (pdf, txt, code, etc.): text content extracted and injected
 
     Returns SSE stream with events:
-    - conversation_id: the conversation ID (first event)
-    - rag_context: knowledge base sources (if RAG used)
-    - token: streamed LLM token
-    - tool_start: agent is calling a tool
-    - done: stream complete
-
-    Set stream=false for a non-streaming JSON response.
+    - conversation_id, rag_context, token, tool_start, done
     """
-    # Prepare: create conversation, save user message, load history
     conversation_id, langchain_messages, agent_config, use_rag = await _prepare_chat(request)
 
     if request.stream:
@@ -131,11 +278,8 @@ async def chat(request: ChatRequest):
             },
         )
     else:
-        # Non-streaming: collect all tokens and return JSON
         full_response = ""
         sources = []
-
-        # Use a DB session for RAG search and message persistence
         async with async_session_factory() as db:
             async for event in run_agent(langchain_messages, agent_config, use_rag, db):
                 if event["type"] == "token":
@@ -146,7 +290,6 @@ async def chat(request: ChatRequest):
                     if event.get("sources"):
                         sources = event["sources"]
 
-            # Save assistant message
             assistant_msg = Message(
                 conversation_id=conversation_id,
                 role="assistant",
@@ -164,31 +307,23 @@ async def chat(request: ChatRequest):
 
 
 async def _stream_response(conversation_id, messages, agent_config, use_rag):
-    """
-    Generator that yields SSE-formatted events from the agent.
-    Manages its own DB session for saving the assistant message.
-    """
-    # First event: send conversation ID so frontend can track it
+    """Generator that yields SSE-formatted events from the agent."""
     yield f"data: {json.dumps({'type': 'conversation_id', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
 
     full_response = ""
     sources = []
 
     try:
-        # The RAG search needs a DB session — create one for the agent
         async with async_session_factory() as agent_db:
             async for event in run_agent(messages, agent_config, use_rag, agent_db):
                 if event["type"] == "rag_context":
                     sources = event.get("sources", [])
                     yield f"data: {json.dumps({'type': 'rag_context', 'sources': sources}, ensure_ascii=False)}\n\n"
-
                 elif event["type"] == "token":
                     full_response += event["content"]
                     yield f"data: {json.dumps({'type': 'token', 'content': event['content']}, ensure_ascii=False)}\n\n"
-
                 elif event["type"] == "tool_start":
                     yield f"data: {json.dumps({'type': 'tool_start', 'name': event['name'], 'args': event['args']}, ensure_ascii=False)}\n\n"
-
                 elif event["type"] == "done":
                     if event.get("sources"):
                         sources = event["sources"]
@@ -197,9 +332,8 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag):
     except Exception as e:
         error_msg = f"Agent 执行错误: {str(e)}"
         yield f"data: {json.dumps({'type': 'error', 'content': error_msg}, ensure_ascii=False)}\n\n"
-        full_response = f"⚠️ {error_msg}"
+        full_response = f"\u26a0\ufe0f {error_msg}"
     finally:
-        # Persist the assistant message in a fresh session
         if full_response:
             try:
                 async with async_session_factory() as db:
@@ -211,7 +345,6 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag):
                     )
                     db.add(assistant_msg)
 
-                    # Update conversation title if it's new
                     conv_result = await db.execute(
                         select(Conversation).where(Conversation.id == conversation_id)
                     )

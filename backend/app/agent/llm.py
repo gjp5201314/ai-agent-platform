@@ -2,6 +2,7 @@
 LLM factory: creates a chat model based on the configured provider.
 Supports: Qwen (DashScope), OpenAI, Claude (Anthropic).
 All accessed through OpenAI-compatible or native SDKs.
+Auto-switches to vision models when image content is detected.
 """
 from typing import Optional
 
@@ -17,6 +18,7 @@ def get_llm(
     provider: Optional[str] = None,
     temperature: float = 0.7,
     max_tokens: int = 4096,
+    has_images: bool = False,
 ) -> ChatOpenAI:
     """
     Create or retrieve a cached LLM instance.
@@ -25,19 +27,19 @@ def get_llm(
         provider:     Override the configured provider (qwen/openai/claude)
         temperature:  Sampling temperature
         max_tokens:   Max tokens for response
+        has_images:   If True, use vision-capable model (e.g. qwen-vl-plus)
 
     Returns:
         A ChatOpenAI-compatible model instance.
-        Qwen and OpenAI use ChatOpenAI directly (DashScope is OpenAI-compatible).
-        Claude uses langchain_openai.ChatOpenAI with Anthropic's OpenAI-compat endpoint.
-
-    Note: We use ChatOpenAI for all providers because:
-      - DashScope (Qwen) provides an OpenAI-compatible endpoint
-      - Anthropic also provides an OpenAI-compatible endpoint
-      - This keeps the interface uniform for LangGraph tool calling
     """
     provider = provider or settings.llm_provider
-    cache_key = f"{provider}_{temperature}_{max_tokens}"
+
+    # Auto-select vision model for Qwen when images are present
+    model = settings.qwen_model
+    if has_images and provider == "qwen":
+        model = settings.qwen_vision_model
+
+    cache_key = f"{provider}_{model}_{temperature}_{max_tokens}"
 
     if cache_key in _llm_cache:
         return _llm_cache[cache_key]
@@ -46,7 +48,7 @@ def get_llm(
         llm = ChatOpenAI(
             api_key=settings.dashscope_api_key,
             base_url=settings.dashscope_base_url,
-            model=settings.qwen_model,
+            model=model,
             temperature=temperature,
             max_tokens=max_tokens,
             streaming=True,
@@ -61,7 +63,6 @@ def get_llm(
             streaming=True,
         )
     elif provider == "claude":
-        # Anthropic OpenAI-compatible endpoint
         llm = ChatOpenAI(
             api_key=settings.anthropic_api_key,
             base_url="https://api.anthropic.com/v1/",

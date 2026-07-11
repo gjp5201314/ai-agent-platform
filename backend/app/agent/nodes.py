@@ -13,18 +13,29 @@ from app.config import settings
 
 
 def _ensure_str_content(msg):
-    """Ensure message content is a plain string (DashScope doesn't support content blocks)."""
+    """
+    Ensure message content is either a plain string or a multimodal list.
+    Preserves image_url blocks for vision models.
+    Only converts content blocks to string when they're all text-only.
+    """
     content = getattr(msg, "content", None)
     if content is not None and not isinstance(content, str):
-        # Convert list of content blocks to plain string
         if isinstance(content, list):
+            # Check if there are any non-text blocks (images)
+            has_non_text = any(
+                isinstance(part, dict) and "image_url" in part
+                for part in content
+            )
+            if has_non_text:
+                # Keep multimodal content as-is for vision models
+                return msg
+            # All text blocks → merge to plain string
             parts = []
             for part in content:
                 if isinstance(part, str):
                     parts.append(part)
                 elif isinstance(part, dict) and "text" in part:
                     parts.append(part["text"])
-            # Reconstruct the message with string content
             return type(msg)(content="".join(parts))
     return msg
 
@@ -61,7 +72,18 @@ async def rag_node(state: AgentState, db: AsyncSession) -> dict:
     last_user_msg = None
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
+            content = msg.content
+            # For multimodal content, extract only the text part for RAG search
+            if isinstance(content, list):
+                text_parts = []
+                for part in content:
+                    if isinstance(part, str):
+                        text_parts.append(part)
+                    elif isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
+                last_user_msg = "".join(text_parts)
+            else:
+                last_user_msg = content
             break
         if isinstance(msg, dict) and msg.get("role") == "user":
             last_user_msg = msg["content"]
@@ -115,7 +137,8 @@ async def agent_node(state: AgentState) -> dict:
     else:
         full_system_prompt = system_prompt
 
-    llm = get_llm(provider=provider, temperature=temperature, max_tokens=max_tokens)
+    has_images = agent_config.get("has_images", False)
+    llm = get_llm(provider=provider, temperature=temperature, max_tokens=max_tokens, has_images=has_images)
 
     # Bind tools if enabled
     enabled_tools = state.get("tools_enabled", [])

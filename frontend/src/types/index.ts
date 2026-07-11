@@ -1,11 +1,20 @@
 // Type definitions
 
+export interface Attachment {
+  id: string;
+  filename: string;
+  url: string;
+  type: string;
+  size: number;
+}
+
 export interface Message {
   id?: number;
   role: "user" | "assistant" | "tool" | "system";
   content: string;
   metadata?: {
     sources?: Source[];
+    attachments?: Attachment[];
     [key: string]: unknown;
   };
   created_at?: string;

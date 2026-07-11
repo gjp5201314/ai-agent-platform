@@ -1,11 +1,12 @@
 import { Menu, Cpu } from "lucide-react";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
-import type { Message } from "../types";
+import type { Message, AgentConfig } from "../types";
 
 interface Props {
   messages: Message[];
   isStreaming: boolean;
+  activeAgent: AgentConfig | null;
   onSend: (message: string) => void;
   onStop: () => void;
   useRag: boolean;
@@ -16,6 +17,7 @@ interface Props {
 export function ChatInterface({
   messages,
   isStreaming,
+  activeAgent,
   onSend,
   onStop,
   useRag,
@@ -39,9 +41,11 @@ export function ChatInterface({
         >
           <Menu size={20} />
         </button>
-        <div className="flex items-center gap-2">
-          <Cpu size={16} className="text-cyber-400" />
-          <span className="font-medium text-sm text-white/80">AI Agent</span>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Cpu size={14} className="text-cyber-400 flex-shrink-0" />
+          <span className="font-medium text-xs text-white/70 truncate">
+            {activeAgent?.name || "AI Agent"}
+          </span>
         </div>
       </div>
 
