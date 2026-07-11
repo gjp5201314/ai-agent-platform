@@ -1,7 +1,7 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Cpu, User, Wrench, FileText } from "lucide-react";
+import { Cpu, User, Wrench, FileText, Copy, Check } from "lucide-react";
 import type { Message } from "../types";
 
 interface Props {
@@ -22,11 +22,11 @@ export function MessageList({ messages, isStreaming }: Props) {
       <div className="flex-1 flex items-center justify-center relative z-10">
         <div className="text-center max-w-lg px-6">
           {/* Central orb */}
-          <div className="relative mx-auto mb-8 w-24 h-24">
+          <div className="relative mx-auto mb-8 mt-12 w-24 h-24">
             <div className="absolute inset-0 bg-cyber-400/10 rounded-full blur-2xl animate-glow-pulse" />
             <div className="absolute inset-2 bg-gradient-to-br from-cyber-400/20 to-neon-500/20 rounded-full blur-xl" />
             <div className="relative w-full h-full rounded-full glass-panel flex items-center justify-center">
-              <Cpu size={36} className="text-cyber-400 animate-float" />
+              <Cpu size={36} className="text-cyber-400" />
             </div>
           </div>
 
@@ -74,6 +74,28 @@ export function MessageList({ messages, isStreaming }: Props) {
 
 function MessageItem({ message, isStreaming }: { message: Message; isStreaming: boolean }) {
   const isUser = message.role === "user";
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    if (!message.content) return;
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers / non-HTTPS
+      const textarea = document.createElement("textarea");
+      textarea.value = message.content;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [message.content]);
 
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""} animate-slide-up`}>
@@ -112,7 +134,7 @@ function MessageItem({ message, isStreaming }: { message: Message; isStreaming: 
 
         {/* Message bubble */}
         <div
-          className={`rounded-2xl px-4 py-3 overflow-hidden ${
+          className={`rounded-2xl px-4 py-3 overflow-hidden relative group ${
             isUser
               ? "bg-gradient-to-br from-cyber-600/60 to-cyber-800/60 border border-cyber-400/20 shadow-glow-cyan"
               : "glass-panel border-white/[0.06]"
@@ -177,6 +199,32 @@ function MessageItem({ message, isStreaming }: { message: Message; isStreaming: 
               />
             </div>
           ) : null}
+        </div>
+
+        {/* Meta row: timestamp + copy button (outside the bubble) */}
+        <div
+          className={`flex items-center gap-1.5 text-[10px] text-white/25
+            ${isUser ? "flex-row-reverse" : ""}`}
+        >
+          <span>
+            {new Date().toLocaleTimeString("zh-CN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+          {message.content && (
+            <button
+              onClick={handleCopy}
+              className={`p-0.5 rounded transition-all
+                ${copied
+                  ? "text-emerald-400"
+                  : "text-white/30 hover:text-white/70"
+                }`}
+              title={copied ? "已复制" : "复制"}
+            >
+              {copied ? <Check size={11} /> : <Copy size={11} />}
+            </button>
+          )}
         </div>
 
         {/* Sources (RAG) */}

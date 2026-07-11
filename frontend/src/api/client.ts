@@ -36,7 +36,8 @@ export async function* streamChat(
   conversationId: string | null,
   agentId: string | null,
   useRag: boolean,
-  attachments: Attachment[] = []
+  attachments: Attachment[] = [],
+  modelProvider?: string,
 ): AsyncGenerator<SSEEvent> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: "POST",
@@ -48,6 +49,7 @@ export async function* streamChat(
       stream: true,
       use_rag: useRag,
       attachments,
+      model_provider: modelProvider || null,
     }),
   });
 
@@ -193,4 +195,35 @@ export const api = {
   // ---- Health ----
 
   healthCheck: () => fetchJSON<any>(`${API_BASE}/health`),
+
+  // ---- Admin ----
+
+  adminDashboard: () => fetchJSON<any>(`${API_BASE}/admin/dashboard`),
+
+  adminLlmList: () =>
+    fetchJSON<{ providers: any[]; default_provider: string }>(`${API_BASE}/admin/llm/list`),
+
+  adminLlmUpdate: (provider: string, data: Record<string, any>) =>
+    fetchJSON<any>(`${API_BASE}/admin/llm/update`, { provider, ...data }),
+
+  adminModels: () =>
+    fetchJSON<{ providers: any[]; default_provider: string }>(`${API_BASE}/admin/models`),
+
+  adminRagDocuments: (skip = 0, limit = 50) =>
+    fetchJSON<any[]>(`${API_BASE}/admin/rag/documents`, { skip, limit }),
+
+  adminRagUpload: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return fetch(`${API_BASE}/admin/rag/upload`, { method: "POST", body: formData }).then((r) => {
+      if (!r.ok) return r.json().then((e) => { throw new Error(e.detail || "Upload failed"); });
+      return r.json();
+    });
+  },
+
+  adminRagDelete: (id: string) =>
+    fetchJSON<{ detail: string }>(`${API_BASE}/admin/rag/delete`, { doc_id: id }),
+
+  adminRagStats: () =>
+    fetchJSON<{ document_count: number; chunk_count: number }>(`${API_BASE}/admin/rag/stats`),
 };

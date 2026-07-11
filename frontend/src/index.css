@@ -2,7 +2,7 @@
 @import "shadcn/tailwind.css";
 @import "tailwindcss";
 
-/* ===== Dialog overlay: darken for readability ===== */
+/* ===== Ant Design is no longer used — removed legacy override ===== */
 [data-slot="dialog-overlay"] {
   background-color: rgba(0, 0, 0, 0.65) !important;
   backdrop-filter: blur(4px);

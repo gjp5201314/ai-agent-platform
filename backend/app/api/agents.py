@@ -147,6 +147,9 @@ async def delete_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
+    if agent.is_protected:
+        raise HTTPException(status_code=400, detail="Cannot delete a protected system agent")
+
     if agent.is_default:
         raise HTTPException(status_code=400, detail="Cannot delete the default agent")
 

@@ -52,6 +52,7 @@ class ChatRequest(BaseModel):
     stream: bool = True
     use_rag: bool = True
     attachments: List[AttachmentInfo] = Field(default_factory=list, max_length=20)
+    model_provider: Optional[str] = Field(None, max_length=32, description="Override LLM provider: qwen/openai/claude")
 
 
 class MessageOut(BaseModel):
@@ -215,6 +216,7 @@ class AgentConfigOut(BaseModel):
     rag_top_k: int
     rag_similarity_threshold: float
     is_default: bool
+    is_protected: bool = False
 
     class Config:
         from_attributes = True
@@ -230,3 +232,41 @@ class HealthCheck(BaseModel):
     redis: str = "unknown"
     llm_provider: str = "unknown"
     version: str = "1.0.0"
+
+
+# ============================================================
+#  Admin / System Config
+# ============================================================
+
+class DashboardStats(BaseModel):
+    total_conversations: int = 0
+    total_messages: int = 0
+    total_documents: int = 0
+    total_chunks: int = 0
+    total_storage_mb: float = 0
+    total_agents: int = 0
+    conversations_today: int = 0
+    messages_today: int = 0
+
+
+class LLMProviderInfo(BaseModel):
+    id: str = Field(..., description="Provider key: qwen/openai/claude")
+    name: str = Field(..., description="Display name")
+    enabled: bool = False
+    models: List[str] = Field(default_factory=list)
+    default_model: str = ""
+    api_key_set: bool = False
+    base_url: str = ""
+
+
+class LLMConfigResponse(BaseModel):
+    providers: List[LLMProviderInfo]
+    default_provider: str = ""
+
+
+class LLMConfigUpdate(BaseModel):
+    provider: str = Field(..., min_length=1, max_length=32)
+    api_key: Optional[str] = Field(None, max_length=512)
+    base_url: Optional[str] = Field(None, max_length=256)
+    model: Optional[str] = Field(None, max_length=128)
+    enabled: Optional[bool] = None

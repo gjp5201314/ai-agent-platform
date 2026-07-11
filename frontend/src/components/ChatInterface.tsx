@@ -13,6 +13,9 @@ interface Props {
   useRag: boolean;
   onToggleRag: () => void;
   onOpenSidebar: () => void;
+  modelProvider: string | null;
+  onModelProviderChange: (provider: string | null) => void;
+  onOpenAdmin: () => void;
 }
 
 /** Estimate token count from messages (rough: 2 chars ≈ 1 token for mixed CN/EN) */
@@ -33,6 +36,9 @@ export function ChatInterface({
   useRag,
   onToggleRag,
   onOpenSidebar,
+  modelProvider,
+  onModelProviderChange,
+  onOpenAdmin,
 }: Props) {
   const maxTokens = activeAgent?.max_tokens || 4096;
   const estimated = useMemo(() => estimateTokens(messages), [messages]);
@@ -102,6 +108,9 @@ export function ChatInterface({
           isStreaming={isStreaming}
           useRag={useRag}
           onToggleRag={onToggleRag}
+          modelProvider={modelProvider}
+          onModelProviderChange={onModelProviderChange}
+          onOpenAdmin={onOpenAdmin}
         />
       </div>
     </div>

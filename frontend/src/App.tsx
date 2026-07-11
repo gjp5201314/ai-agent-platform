@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ChatInterface } from "./components/ChatInterface";
 import { DocumentUpload } from "./components/DocumentUpload";
 import { Settings } from "./components/Settings";
+import { AdminPage } from "./components/AdminPage";
 import { useChat } from "./hooks/useChat";
 import { api } from "./api/client";
 import { Toaster } from "@/components/ui/sonner";
@@ -13,9 +14,12 @@ export default function App() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [showDocuments, setShowDocuments] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [activeAgent, setActiveAgent] = useState<AgentConfig | null>(null);
   const [useRag, setUseRag] = useState(true);
+  const [modelProvider, setModelProvider] = useState<string | null>(null);
+  const [availableProviders, setAvailableProviders] = useState<any[]>([]);
 
   const {
     messages,
@@ -26,6 +30,27 @@ export default function App() {
     loadConversation,
     newConversation,
   } = useChat();
+
+  // ---- Restore selected conversation from URL hash on refresh ----
+  useEffect(() => {
+    const hash = window.location.hash.slice(1); // strip leading #
+    if (hash) {
+      loadConversation(hash);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- Sync conversationId → URL hash (bookmarkable, refresh-safe) ----
+  useEffect(() => {
+    if (conversationId) {
+      window.location.hash = conversationId;
+    } else {
+      // Clear hash when starting a fresh conversation
+      if (window.location.hash) {
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+    }
+  }, [conversationId]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -53,6 +78,8 @@ export default function App() {
   useEffect(() => {
     loadConversations();
     loadAgents();
+    // Load available LLM models for the model selector
+    api.adminModels().then((r) => setAvailableProviders(r.providers)).catch(() => {});
   }, [loadConversations, loadAgents]);
 
   // Refresh agents when Settings closes (user may have created/deleted agents)
@@ -73,10 +100,10 @@ export default function App() {
 
   const handleSend = useCallback(
     (message: string, attachments: Attachment[] = []) => {
-      sendMessage(message, activeAgent?.id || null, useRag, attachments);
+      sendMessage(message, activeAgent?.id || null, useRag, modelProvider, attachments);
       setTimeout(loadConversations, 500);
     },
-    [sendMessage, activeAgent, useRag, loadConversations]
+    [sendMessage, activeAgent, useRag, modelProvider, loadConversations]
   );
 
   const handleSelectConversation = useCallback(
@@ -122,6 +149,7 @@ export default function App() {
           onSwitchAgent={handleSwitchAgent}
           onOpenDocuments={() => setShowDocuments(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenAdmin={() => setShowAdmin(true)}
         />
       </div>
 
@@ -141,6 +169,7 @@ export default function App() {
               onSwitchAgent={handleSwitchAgent}
               onOpenDocuments={() => { setShowDocuments(true); setShowSidebar(false); }}
               onOpenSettings={() => { setShowSettings(true); setShowSidebar(false); }}
+              onOpenAdmin={() => { setShowAdmin(true); setShowSidebar(false); }}
               onClose={() => setShowSidebar(false)}
             />
           </div>
@@ -158,12 +187,16 @@ export default function App() {
           useRag={useRag}
           onToggleRag={() => setUseRag(!useRag)}
           onOpenSidebar={() => setShowSidebar(true)}
+          modelProvider={modelProvider}
+          onModelProviderChange={setModelProvider}
+          onOpenAdmin={() => setShowAdmin(true)}
         />
       </div>
 
       {/* Modals */}
       <Toaster />
       {showDocuments && <DocumentUpload onClose={() => setShowDocuments(false)} />}
+      {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
       {showSettings && (
         <Settings
           onClose={handleCloseSettings}

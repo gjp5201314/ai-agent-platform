@@ -62,6 +62,7 @@ class Document(Base):
     content_hash: Mapped[str] = mapped_column(String(64))  # SHA-256 for dedup
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="processing")  # processing | ready | error
+    source: Mapped[str] = mapped_column(String(20), default="user")  # "user" | "admin"
     metadata_: Mapped[Optional[dict]] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -102,6 +103,7 @@ class AgentConfig(Base):
     rag_top_k: Mapped[int] = mapped_column(Integer, default=4)
     rag_similarity_threshold: Mapped[float] = mapped_column(Float, default=0.5)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="agent")

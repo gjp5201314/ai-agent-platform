@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Plus, MessageSquare, Trash2, FileText, Settings as SettingsIcon, X, Search, Zap, Cpu, ChevronDown
+  Plus, MessageSquare, Trash2, FileText, Settings as SettingsIcon, X, Search, Zap, Cpu, ChevronDown, SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ interface Props {
   onSwitchAgent: (agent: AgentConfig) => void;
   onOpenDocuments: () => void;
   onOpenSettings: () => void;
+  onOpenAdmin: () => void;
   onClose?: () => void;
 }
 
@@ -32,6 +33,7 @@ export function Sidebar({
   onSwitchAgent,
   onOpenDocuments,
   onOpenSettings,
+  onOpenAdmin,
   onClose,
 }: Props) {
   const [search, setSearch] = useState("");
@@ -208,6 +210,14 @@ export function Sidebar({
         >
           <SettingsIcon size={16} />
           Agent 设置
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={onOpenAdmin}
+          className="w-full justify-start gap-2.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <SlidersHorizontal size={16} />
+          管理后台
         </Button>
       </div>
     </div>

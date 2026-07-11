@@ -397,7 +397,7 @@ async def _prepare_chat(request: ChatRequest, user_id: str = "default"):
             )
 
         agent_config = {
-            "provider": None,
+            "provider": request.model_provider,
             "system_prompt": system_prompt,
             "temperature": agent.temperature if agent else 0.7,
             "max_tokens": agent.max_tokens if agent else 4096,

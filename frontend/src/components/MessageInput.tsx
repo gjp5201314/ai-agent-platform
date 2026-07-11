@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Square, Database, Sparkles, Paperclip, X, FileText } from "lucide-react";
+import { Send, Square, Database, Sparkles, Paperclip, X, FileText, ChevronDown, Cpu, Check, Settings } from "lucide-react";
 import { api } from "../api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,9 @@ interface Props {
   isStreaming: boolean;
   useRag: boolean;
   onToggleRag: () => void;
+  modelProvider: string | null;
+  onModelProviderChange: (provider: string | null) => void;
+  onOpenAdmin: () => void;
 }
 
 const ALLOWED_TYPES = [
@@ -24,7 +27,10 @@ const ALLOWED_TYPES = [
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];
 const PASTE_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/bmp", "image/tiff"];
 
-export function MessageInput({ onSend, onStop, isStreaming, useRag, onToggleRag }: Props) {
+export function MessageInput({
+  onSend, onStop, isStreaming, useRag, onToggleRag,
+  modelProvider, onModelProviderChange, onOpenAdmin,
+}: Props) {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -136,7 +142,6 @@ export function MessageInput({ onSend, onStop, isStreaming, useRag, onToggleRag 
   return (
     <div className="px-4 pb-4 pt-2">
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-        {/* Attachment previews */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {attachments.map((att) => (
@@ -173,7 +178,6 @@ export function MessageInput({ onSend, onStop, isStreaming, useRag, onToggleRag 
         )}
 
         <div className="relative">
-          {/* RAG active indicator bar */}
           {useRag && (
             <div className="absolute -top-3.5 left-3 z-10 flex items-center gap-1.5
                             px-2.5 py-0.5 rounded-full
@@ -192,7 +196,7 @@ export function MessageInput({ onSend, onStop, isStreaming, useRag, onToggleRag 
                           ${useRag
                             ? "border-emerald-500/30 ring-1 ring-emerald-500/10"
                             : "focus-within:border-primary/30 focus-within:ring-1 focus-within:ring-primary/20"}`}>
-            <div className="flex items-end gap-2 p-2">
+            <div className="flex items-end gap-1.5 p-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -236,7 +240,13 @@ export function MessageInput({ onSend, onStop, isStreaming, useRag, onToggleRag 
                 />
               </div>
 
-              <div className="flex items-center gap-1.5 pr-1">
+              <div className="flex items-center gap-1 pr-1">
+                <ModelSelector
+                  value={modelProvider}
+                  onChange={onModelProviderChange}
+                  onOpenAdmin={onOpenAdmin}
+                />
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -249,7 +259,7 @@ export function MessageInput({ onSend, onStop, isStreaming, useRag, onToggleRag 
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Database size={14} className={useRag ? "" : ""} />
+                  <Database size={14} />
                   <span className="hidden sm:inline font-medium">RAG</span>
                   {useRag && (
                     <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full
@@ -291,6 +301,114 @@ export function MessageInput({ onSend, onStop, isStreaming, useRag, onToggleRag 
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+/* ============================================================
+   ModelSelector — custom dark dropdown matching app aesthetic
+   ============================================================ */
+function ModelSelector({
+  value, onChange, onOpenAdmin,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+  onOpenAdmin: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [providers, setProviders] = useState<{ id: string; name: string; enabled: boolean; default_model: string }[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.adminModels().then((r) => setProviders(r.providers.filter((p: any) => p.enabled))).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const selected = providers.find((p) => p.id === value);
+  const label = selected?.name || "默认";
+  const active = value !== null;
+
+  if (providers.length === 0) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`group h-9 px-2.5 rounded-lg flex items-center gap-1.5
+                    text-xs font-medium transition-all
+                    ${open
+                      ? "bg-cyber-500/10 text-cyber-400 ring-1 ring-cyber-500/30"
+                      : active
+                        ? "text-foreground bg-surface-700/40 hover:bg-surface-700/70"
+                        : "text-muted-foreground hover:text-foreground hover:bg-surface-700/40"
+                    }`}
+        title="选择大模型"
+      >
+        <Cpu size={13} className={open || active ? "text-cyber-400" : ""} />
+        <span className="hidden md:inline max-w-[80px] truncate">{label}</span>
+        <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : "opacity-50"}`} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 bottom-full mb-1.5 w-56
+                      rounded-lg overflow-hidden
+                      bg-[#0b0b16]/95 backdrop-blur-xl
+                      border border-white/10
+                      shadow-[0_8px_32px_rgba(0,0,0,0.5),0_0_0_1px_rgba(0,229,255,0.08)]
+                      z-50"
+        >
+          <div className="px-3 py-2 text-[10px] text-white/30 tracking-widest uppercase border-b border-white/5">
+            切换模型
+          </div>
+
+          <button
+            onClick={() => { onChange(null); setOpen(false); }}
+            className="w-full px-3 py-2 flex items-center gap-2 text-xs text-left
+                       text-white/70 hover:bg-white/5 transition-colors"
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+            <span className="flex-1">使用默认</span>
+            {!active && <Check size={12} className="text-cyber-400" />}
+          </button>
+
+          <div className="border-t border-white/5">
+            {providers.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => { onChange(p.id); setOpen(false); }}
+                className="w-full px-3 py-2 flex items-center gap-2 text-xs text-left
+                           text-white/70 hover:bg-white/5 transition-colors"
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${value === p.id ? "bg-cyber-400 shadow-[0_0_6px_rgba(0,229,255,0.6)]" : "bg-white/20"}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-white/90">{p.name}</div>
+                  <div className="text-[10px] text-white/30 truncate">{p.default_model}</div>
+                </div>
+                {value === p.id && <Check size={12} className="text-cyber-400 flex-shrink-0" />}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => { setOpen(false); onOpenAdmin(); }}
+            className="w-full px-3 py-2 flex items-center gap-2 text-xs text-left
+                       text-white/40 hover:text-cyber-400 hover:bg-white/5 transition-colors
+                       border-t border-white/5"
+          >
+            <Settings size={12} />
+            <span className="flex-1">管理模型</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

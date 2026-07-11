@@ -48,13 +48,88 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """
-    Initialize database: create pgvector extension and all tables.
+    Initialize database: create extensions, tables, and full-text search indexes.
     Call this on application startup.
     """
     from sqlalchemy import text
     from app.models import Conversation, Message, Document, DocumentChunk, AgentConfig  # noqa
 
     async with engine.begin() as conn:
-        # pgvector extension is required for vector columns
+        # pgvector extension for vector columns
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+
+        # Run table creation first
         await conn.run_sync(Base.metadata.create_all)
+
+        # ---- Schema migrations: new columns (idempotent) ----
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'documents' AND column_name = 'source'
+                ) THEN
+                    ALTER TABLE documents ADD COLUMN source VARCHAR(20) DEFAULT 'user';
+                END IF;
+            END $$;
+        """))
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'agent_configs' AND column_name = 'is_protected'
+                ) THEN
+                    ALTER TABLE agent_configs ADD COLUMN is_protected BOOLEAN DEFAULT FALSE;
+                END IF;
+            END $$;
+        """))
+        # Add tsvector column (idempotent)
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'document_chunks' AND column_name = 'search_vector'
+                ) THEN
+                    ALTER TABLE document_chunks
+                    ADD COLUMN search_vector tsvector;
+                END IF;
+            END $$;
+        """))
+
+        # Create GIN index for fast full-text search (idempotent)
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_document_chunks_search
+            ON document_chunks USING GIN (search_vector);
+        """))
+
+    # ---- Re-index existing chunks with CJK tokenization ----
+    await _reindex_existing_chunks()
+
+
+async def _reindex_existing_chunks():
+    """
+    Re-populate search_vector for all existing chunks using CJK-aware
+    tokenization (Python-side, avoids PL/pgSQL escaping issues).
+    """
+    from sqlalchemy import text, select
+    from app.models import DocumentChunk
+    from app.rag.retriever import _cjk_tokenize
+
+    async with async_session_factory() as session:
+        result = await session.execute(select(DocumentChunk.id, DocumentChunk.content))
+        rows = result.fetchall()
+
+        if not rows:
+            return
+
+        for chunk_id, content in rows:
+            tokenized = _cjk_tokenize(content)
+            await session.execute(
+                text("UPDATE document_chunks SET search_vector = to_tsvector('simple', :content) WHERE id = :id"),
+                {"content": tokenized, "id": chunk_id},
+            )
+
+        await session.commit()
+        print(f"[Init] Reindexed {len(rows)} document chunks for hybrid keyword search")

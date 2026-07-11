@@ -10,7 +10,7 @@ export function useChat() {
   const abortRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
-    async (content: string, agentId: string | null, useRag: boolean, attachments: Attachment[] = []) => {
+    async (content: string, agentId: string | null, useRag: boolean, modelProvider?: string | null, attachments: Attachment[] = []) => {
       // Add user message
       const userMsg: Message = {
         role: "user",
@@ -29,7 +29,7 @@ export function useChat() {
         let fullResponse = "";
         let receivedSources: Source[] = [];
 
-        for await (const event of api.streamChat(content, conversationId, agentId, useRag, attachments)) {
+        for await (const event of api.streamChat(content, conversationId, agentId, useRag, attachments, modelProvider || undefined)) {
           switch (event.type) {
             case "conversation_id":
               if (event.conversation_id) {

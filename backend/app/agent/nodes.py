@@ -92,13 +92,13 @@ async def rag_node(state: AgentState, db: AsyncSession) -> dict:
     if not last_user_msg:
         return {}
 
-    # Search the knowledge base
-    from app.rag.retriever import search_similar
+    # Hybrid search the knowledge base (semantic + BM25)
+    from app.rag.retriever import hybrid_search
     agent_config = state.get("agent_config", {})
     top_k = agent_config.get("rag_top_k", 4)
     threshold = agent_config.get("rag_similarity_threshold", 0.5)
 
-    results = await search_similar(db, last_user_msg, top_k=top_k, similarity_threshold=threshold)
+    results = await hybrid_search(db, last_user_msg, top_k=top_k, similarity_threshold=threshold)
 
     if not results:
         return {"retrieved_context": []}

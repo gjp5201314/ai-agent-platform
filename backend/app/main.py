@@ -116,7 +116,7 @@ app.add_middleware(
 )
 
 # Register routers under API version prefix
-from app.api import chat, rag, conversations, agents, health  # noqa: E402
+from app.api import chat, rag, conversations, agents, health, admin  # noqa: E402
 
 API_V1 = "/api/v1"
 
@@ -125,6 +125,7 @@ app.include_router(chat.router, prefix=f"{API_V1}/chat", tags=["chat"])
 app.include_router(rag.router, prefix=f"{API_V1}/rag", tags=["rag"])
 app.include_router(conversations.router, prefix=f"{API_V1}/conversations", tags=["conversations"])
 app.include_router(agents.router, prefix=f"{API_V1}/agents", tags=["agents"])
+app.include_router(admin.router, prefix=f"{API_V1}/admin", tags=["admin"])
 
 # Serve uploaded files through a controlled endpoint (not raw StaticFiles)
 os.makedirs(settings.upload_dir, exist_ok=True)
@@ -132,7 +133,7 @@ app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads"
 
 
 async def _seed_default_agent():
-    """Create a default agent config if the table is empty."""
+    """Create default agents if missing (idempotent — uses fixed IDs)."""
     from sqlalchemy import select, func
     from app.database import async_session_factory
     from app.models import AgentConfig
@@ -140,6 +141,7 @@ async def _seed_default_agent():
     async with async_session_factory() as db:
         count_result = await db.execute(select(func.count(AgentConfig.id)))
         count = count_result.scalar()
+
         if count == 0:
             default_agent = AgentConfig(
                 id="default",
@@ -160,6 +162,34 @@ async def _seed_default_agent():
             db.add(default_agent)
             await db.commit()
             print("[Startup] Default agent created.")
+
+        # ---- Ensure the protected RAG-only agent exists (idempotent by fixed ID) ----
+        result = await db.execute(select(AgentConfig).where(AgentConfig.id == "rag-assistant"))
+        if not result.scalar_one_or_none():
+            rag_agent = AgentConfig(
+                id="rag-assistant",
+                name="知识库助手",
+                description="专用知识库问答 Agent，仅检索管理员配置的知识库文档，不可删除",
+                system_prompt=(
+                    "你是一个专业的知识库问答助手。\n"
+                    "你只能基于知识库中的文档内容回答问题。\n"
+                    "规则：\n"
+                    "1. 如果知识库中有相关信息，请基于文档内容准确回答并注明来源\n"
+                    "2. 如果知识库中没有相关信息，请明确告知用户'该问题在知识库中未找到相关内容'\n"
+                    "3. 回答要引用原文片段，保持客观准确\n"
+                    "请用清晰、专业的中文回答。"
+                ),
+                temperature=0.5,
+                max_tokens=4096,
+                enabled_tools=["rag"],
+                rag_top_k=5,
+                rag_similarity_threshold=0.3,  # Lower threshold for broader matching
+                is_default=False,
+                is_protected=True,
+            )
+            db.add(rag_agent)
+            await db.commit()
+            print("[Startup] Protected RAG-only agent created.")
 
 
 if __name__ == "__main__":

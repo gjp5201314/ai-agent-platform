@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Document, DocumentChunk
 from app.rag.chunker import extract_text_from_bytes
-from app.rag.retriever import index_document, search_similar
+from app.rag.retriever import index_document, hybrid_search
 from app.schemas import (
     DocumentOut,
     RagSearchResult,
@@ -144,8 +144,12 @@ async def search_knowledge_base(
     request: RagSearchRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Semantic search the knowledge base (pgvector)."""
-    results = await search_similar(db, query=request.query, top_k=request.top_k)
+    """Hybrid search the knowledge base (semantic + BM25 keyword)."""
+    results = await hybrid_search(
+        db,
+        query=request.query,
+        top_k=request.top_k,
+    )
     return results
 
 
