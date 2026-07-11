@@ -85,12 +85,12 @@ async def _seed_default_agent():
                     "你是一个专业的 AI 助手。你可以：\n"
                     "1. 回答用户的问题\n"
                     "2. 基于上传的知识库文档进行精准问答\n"
-                    "3. 调用工具（如网络搜索、计算器）完成复杂任务\n"
+                    "3. 调用工具完成复杂任务（网络搜索、天气查询、新闻、汇率、IP查询等）\n"
                     "请用清晰、专业的中文回答。"
                 ),
                 temperature=0.7,
                 max_tokens=4096,
-                enabled_tools=["rag", "web_search", "calculator", "get_current_time"],
+                enabled_tools=["rag", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke"],
                 is_default=True,
             )
             db.add(default_agent)

@@ -4,6 +4,11 @@ Each tool is a LangChain BaseTool with async support.
 """
 import ast
 import operator
+import random
+import urllib.request
+import urllib.parse
+import json
+import re
 from typing import Optional
 
 from langchain_core.tools import tool
@@ -173,6 +178,202 @@ def get_weather(city: str) -> str:
         return f"天气查询失败: {e}"
 
 
+# ---- News Headlines (free public API, no key needed) ----
+
+@tool
+def get_news() -> str:
+    """
+    Get current trending news and hot topics in China.
+    Returns the latest hot search topics. No API key required.
+
+    Returns:
+        Formatted list of trending news topics.
+    """
+    try:
+        url = "https://api.vvhan.com/api/hotlist?type=wbHot"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        if not data.get("success"):
+            return "获取新闻失败：API 返回异常。"
+
+        items = data.get("data", [])[:15]
+        if not items:
+            return "暂无热门新闻数据。"
+
+        lines = ["📰 当前热门新闻：", ""]
+        for i, item in enumerate(items, 1):
+            title = item.get("title", "无标题")
+            hot = item.get("hot", "")
+            lines.append(f"{i}. {title}" + (f" (热度: {hot})" if hot else ""))
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"新闻获取失败: {e}"
+
+
+# ---- IP Location Lookup (free API, no key needed) ----
+
+@tool
+def lookup_ip(ip: str) -> str:
+    """
+    Look up geolocation information for an IP address.
+    Uses ip-api.com free service. No API key required.
+
+    Args:
+        ip: An IPv4 or IPv6 address, e.g. "8.8.8.8"
+
+    Returns:
+        Location info: country, region, city, ISP, etc.
+    """
+    try:
+        url = f"http://ip-api.com/json/{urllib.parse.quote(ip)}?lang=zh-CN"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        if data.get("status") != "success":
+            return f"IP 查询失败: {data.get('message', '未知错误')}"
+
+        return (
+            f"IP: {data.get('query', 'N/A')}\n"
+            f"国家: {data.get('country', 'N/A')}\n"
+            f"地区: {data.get('regionName', 'N/A')}\n"
+            f"城市: {data.get('city', 'N/A')}\n"
+            f"ISP: {data.get('isp', 'N/A')}\n"
+            f"经纬度: {data.get('lat', 'N/A')}, {data.get('lon', 'N/A')}"
+        )
+    except Exception as e:
+        return f"IP 查询失败: {e}"
+
+
+# ---- Exchange Rate (free API, no key needed) ----
+
+@tool
+def exchange_rate(from_currency: str = "CNY", to_currency: str = "USD") -> str:
+    """
+    Get real-time exchange rate between two currencies.
+    Uses exchangerate-api.com free service. No API key required.
+
+    Args:
+        from_currency: Source currency code, e.g. "CNY", "USD", "EUR" (default CNY)
+        to_currency: Target currency code, e.g. "USD", "JPY", "EUR" (default USD)
+
+    Returns:
+        Exchange rate and conversion example.
+    """
+    try:
+        frm = from_currency.upper().strip()
+        to = to_currency.upper().strip()
+
+        url = f"https://api.exchangerate-api.com/v4/latest/{frm}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        rates = data.get("rates", {})
+        if to not in rates:
+            return f"不支持的货币代码: {to}。支持的货币有: {', '.join(sorted(rates.keys())[:20])}..."
+
+        rate = rates[to]
+        return (
+            f"1 {frm} = {rate:.4f} {to}\n"
+            f"100 {frm} = {rate * 100:.2f} {to}\n"
+            f"1000 {frm} = {rate * 1000:.2f} {to}\n"
+            f"更新时间: {data.get('date', 'N/A')}"
+        )
+    except Exception as e:
+        return f"汇率查询失败: {e}"
+
+
+# ---- URL Content Fetcher ----
+
+@tool
+def fetch_url(url: str, max_chars: int = 3000) -> str:
+    """
+    Fetch and extract readable text content from a web page URL.
+    Strips HTML tags and scripts. Useful for summarizing articles.
+
+    Args:
+        url: Full URL of the web page to fetch
+        max_chars: Maximum characters to return (default 3000)
+
+    Returns:
+        Extracted text content of the page.
+    """
+    try:
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; AiAgent/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            if "text/html" not in content_type and "text/plain" not in content_type:
+                return f"不支持的内容类型: {content_type}，仅支持 HTML/文本页面。"
+
+            html = resp.read().decode("utf-8", errors="replace")
+
+        # Remove script and style blocks
+        html = re.sub(r"<script[^>]*>.*?</script>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+        html = re.sub(r"<style[^>]*>.*?</style>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+
+        # Remove HTML tags
+        text = re.sub(r"<[^>]+>", " ", html)
+
+        # Clean up whitespace
+        text = re.sub(r"&nbsp;", " ", text)
+        text = re.sub(r"&amp;", "&", text)
+        text = re.sub(r"&lt;", "<", text)
+        text = re.sub(r"&gt;", ">", text)
+        text = re.sub(r"&quot;", '"', text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        if len(text) > max_chars:
+            text = text[:max_chars] + f"\n\n... (内容过长，已截断至 {max_chars} 字符)"
+
+        if not text.strip():
+            return "未能从该页面提取到有效文本内容。"
+
+        return f"来源: {url}\n\n{text}"
+    except Exception as e:
+        return f"URL 抓取失败: {e}"
+
+
+# ---- Random Jokes ----
+
+_JOKES = [
+    "程序员最讨厌的康熙的哪个儿子？——胤禩，因为他是八阿哥（bug）。",
+    "一个程序员的妻子问他：「亲爱的，去便利店买一袋盐，如果看到西瓜，买一个。」程序员买了一个盐回来。妻子问：「为什么只买了盐？」程序员说：「因为我看到了西瓜。」",
+    "为什么程序员总是分不清万圣节和圣诞节？因为 Oct 31 == Dec 25。",
+    "产品经理：「这个需求很简单，怎么实现我不管。」程序员卒，享年 25 岁。",
+    "前端工程师说：「这个布局在 Chrome、Firefox、Edge 上都完美。」IE 用户：「那我呢？」前端工程师：「你谁？」",
+    "面试官：「你期望的薪资是多少？」程序员：「5k。」面试官：「给你 10k，只要你把这个 bug 修好。」程序员：「成交，什么 bug？」面试官：「世界和平。」",
+    "程序员提了一个 bug：「这个功能不符合预期。」测试回复：「那你的预期是什么？」程序员：「我还没想好。」",
+    "一个程序员在海边捡到一个神灯，灯神说：「我可以实现你三个愿望。」程序员：「第一，给我一台顶配 MacBook。」灯神：「没问题，第二个？」程序员：「给我一个永远不会出 bug 的代码库。」灯神沉默了很久：「第三个愿望是什么？」程序员：「把刚才那个取消了吧。」",
+    "为什么程序员的女朋友总是生气？因为她们发现男朋友的 exception handling 只有 try，没有 catch。",
+    "代码审查时，同事：「你这里为什么要写 sleep(1000)？」程序员：「因为我觉得代码跑得太快了，想让它等等后面的代码。」",
+    "老板：「这个项目明天就要上线！」程序员：「没问题，我现在就开始删库。」老板：「？？？」程序员：「开个玩笑，我已经删完了。」",
+    "产品经理：「这个按钮能不能再往左移 1 像素？」设计师：「能不能别这么矫情？」产品经理：「这不是矫情，这是优雅。」",
+    "问: 为什么 Linux 用户不需要杀毒软件？答: 因为病毒作者也找不到怎么安装。",
+    "Git 提交信息大全：'fix bug'、'fix bug again'、'final fix'、'final fix 2'、'really final fix'、'我放弃了'。",
+]
+
+@tool
+def tell_joke() -> str:
+    """
+    Tell a random programming / tech related joke in Chinese.
+    Great for lightening the mood.
+
+    Returns:
+        A random joke as text.
+    """
+    return random.choice(_JOKES)
+
+
 # ---- Tool registry ----
 
 ALL_TOOLS = {
@@ -180,6 +381,11 @@ ALL_TOOLS = {
     "web_search": web_search,
     "get_current_time": get_current_time,
     "get_weather": get_weather,
+    "get_news": get_news,
+    "lookup_ip": lookup_ip,
+    "exchange_rate": exchange_rate,
+    "fetch_url": fetch_url,
+    "tell_joke": tell_joke,
 }
 
 
