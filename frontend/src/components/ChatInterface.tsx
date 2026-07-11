@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Menu, Cpu } from "lucide-react";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
@@ -14,6 +15,15 @@ interface Props {
   onOpenSidebar: () => void;
 }
 
+/** Estimate token count from messages (rough: 2 chars ≈ 1 token for mixed CN/EN) */
+function estimateTokens(msgs: Message[]): number {
+  let total = 0;
+  for (const msg of msgs) {
+    total += (msg.content || "").length;
+  }
+  return Math.max(1, Math.round(total / 2));
+}
+
 export function ChatInterface({
   messages,
   isStreaming,
@@ -24,6 +34,12 @@ export function ChatInterface({
   onToggleRag,
   onOpenSidebar,
 }: Props) {
+  const maxTokens = activeAgent?.max_tokens || 4096;
+  const estimated = useMemo(() => estimateTokens(messages), [messages]);
+  const pct = Math.min(100, Math.round((estimated / maxTokens) * 100));
+  const isFull = pct >= 85;
+  const isWarning = pct >= 65 && pct < 85;
+
   return (
     <div className="flex flex-col h-full bg-[#0b0b16] relative">
       {/* Animated grid background */}
@@ -32,6 +48,30 @@ export function ChatInterface({
       {/* Ambient glow orbs */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyber-400/8 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-neon-500/8 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Context window indicator bar */}
+      {messages.length > 0 && (
+        <div className="relative z-10 flex-shrink-0 px-4 pt-3 pb-0">
+          <div className="max-w-4xl mx-auto flex items-center gap-2">
+            <div className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isFull ? "bg-destructive" : isWarning ? "bg-amber-500" : "bg-primary/60"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span
+              className={`text-[10px] font-mono tabular-nums whitespace-nowrap transition-colors ${
+                isFull ? "text-destructive" : isWarning ? "text-amber-500" : "text-primary/60"
+              }`}
+            >
+              {estimated.toLocaleString()} / {maxTokens.toLocaleString()}
+              {pct > 10 && <span className="ml-0.5 opacity-70">{pct}%</span>}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Mobile header */}
       <div className="lg:hidden flex items-center gap-3 p-3 glass-panel-strong border-b border-white/[0.06] relative z-10">

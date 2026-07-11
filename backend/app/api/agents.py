@@ -1,9 +1,10 @@
 """
-Agent configuration CRUD endpoints.
+Agent configuration CRUD endpoints — enterprise design.
+All operations use POST with JSON body. No IDs in URL paths.
 """
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,22 +14,25 @@ from app.schemas import (
     AgentConfigCreate,
     AgentConfigUpdate,
     AgentConfigOut,
+    AgentListRequest,
+    AgentGetRequest,
+    AgentDeleteRequest,
 )
 from app.agent.tools import ALL_TOOLS
 
 router = APIRouter()
 
 
-@router.get("/tools")
+# ---- Tools ----
+
+@router.post("/tools")
 async def list_available_tools():
-    """List all available tools that can be enabled on an agent."""
-    tools = []
-    # RAG is a special "tool" handled by the graph, not a LangChain tool
-    tools.append({
+    """List all available tools (POST — no params exposed)."""
+    tools = [{
         "name": "rag",
         "description": "知识库检索：搜索上传的文档进行精准问答",
         "type": "rag",
-    })
+    }]
     for name, tool_obj in ALL_TOOLS.items():
         tools.append({
             "name": name,
@@ -38,18 +42,26 @@ async def list_available_tools():
     return {"tools": tools}
 
 
-@router.get("", response_model=list[AgentConfigOut])
-@router.get("/", response_model=list[AgentConfigOut])
-async def list_agents(db: AsyncSession = Depends(get_db)):
-    """List all agent configurations."""
+# ---- List ----
+
+@router.post("/list", response_model=list[AgentConfigOut])
+async def list_agents(
+    request: AgentListRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all agent configurations (pagination in POST body)."""
     result = await db.execute(
-        select(AgentConfig).order_by(AgentConfig.created_at.desc())
+        select(AgentConfig)
+        .order_by(AgentConfig.created_at.desc())
+        .offset(request.skip)
+        .limit(request.limit)
     )
     return result.scalars().all()
 
 
-@router.post("", response_model=AgentConfigOut)
-@router.post("/", response_model=AgentConfigOut)
+# ---- Create ----
+
+@router.post("/create", response_model=AgentConfigOut)
 async def create_agent(
     request: AgentConfigCreate,
     db: AsyncSession = Depends(get_db),
@@ -73,34 +85,43 @@ async def create_agent(
     return result.scalar_one()
 
 
-@router.get("/{agent_id}", response_model=AgentConfigOut)
-async def get_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
-    """Get a single agent configuration."""
-    result = await db.execute(select(AgentConfig).where(AgentConfig.id == agent_id))
+# ---- Get ----
+
+@router.post("/get", response_model=AgentConfigOut)
+async def get_agent(
+    request: AgentGetRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a single agent (id in POST body)."""
+    result = await db.execute(select(AgentConfig).where(AgentConfig.id == request.id))
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     return agent
 
 
-@router.put("/{agent_id}", response_model=AgentConfigOut)
+# ---- Update ----
+
+@router.post("/update", response_model=AgentConfigOut)
 async def update_agent(
-    agent_id: str,
     request: AgentConfigUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an agent configuration."""
-    result = await db.execute(select(AgentConfig).where(AgentConfig.id == agent_id))
+    """Update an agent (agent_id + fields in POST body)."""
+    result = await db.execute(
+        select(AgentConfig).where(AgentConfig.id == request.agent_id)
+    )
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
     update_data = request.model_dump(exclude_unset=True)
+    update_data.pop("agent_id", None)  # Remove the lookup key
 
-    # Handle is_default: only one agent can be default
     if update_data.get("is_default") is True:
-        # Unset all other defaults
-        all_agents = await db.execute(select(AgentConfig).where(AgentConfig.is_default == True))
+        all_agents = await db.execute(
+            select(AgentConfig).where(AgentConfig.is_default == True)
+        )
         for a in all_agents.scalars():
             a.is_default = False
 
@@ -109,14 +130,19 @@ async def update_agent(
 
     await db.commit()
 
-    result = await db.execute(select(AgentConfig).where(AgentConfig.id == agent_id))
+    result = await db.execute(select(AgentConfig).where(AgentConfig.id == request.agent_id))
     return result.scalar_one()
 
 
-@router.delete("/{agent_id}")
-async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
-    """Delete an agent configuration."""
-    result = await db.execute(select(AgentConfig).where(AgentConfig.id == agent_id))
+# ---- Delete ----
+
+@router.post("/delete")
+async def delete_agent(
+    request: AgentDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete an agent (id in POST body)."""
+    result = await db.execute(select(AgentConfig).where(AgentConfig.id == request.id))
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")

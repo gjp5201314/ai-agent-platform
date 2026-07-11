@@ -172,6 +172,9 @@ export function Sidebar({
             >
               <MessageSquare size={14} className="flex-shrink-0" />
               <span className="flex-1 truncate text-xs">{conv.title}</span>
+              <span className="text-[10px] text-muted-foreground/40 tabular-nums flex-shrink-0">
+                {conv.message_count}
+              </span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

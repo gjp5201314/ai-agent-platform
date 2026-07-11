@@ -1,0 +1,187 @@
+[PostHog] Multiple active PostHog clients detected for the same project API key and host. Reuse one Posthog instance per app or process when possible to avoid competing background queues and missed shutdown flushes. Multiple clients are supported when intentional.
+INFO:     Started server process [23988]
+INFO:     Waiting for application startup.
+2026-07-11 21:27:04,335 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-07-11 21:27:04,335 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-07-11 21:27:04,340 INFO sqlalchemy.engine.Engine select current_schema()
+2026-07-11 21:27:04,340 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-07-11 21:27:04,345 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-07-11 21:27:04,345 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-07-11 21:27:04,348 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:04,349 INFO sqlalchemy.engine.Engine CREATE EXTENSION IF NOT EXISTS vector
+2026-07-11 21:27:04,349 INFO sqlalchemy.engine.Engine [generated in 0.00012s] ()
+2026-07-11 21:27:04,356 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-07-11 21:27:04,356 INFO sqlalchemy.engine.Engine [generated in 0.00022s] ('conversations', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-07-11 21:27:04,364 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-07-11 21:27:04,365 INFO sqlalchemy.engine.Engine [cached since 0.00845s ago] ('messages', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-07-11 21:27:04,366 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-07-11 21:27:04,366 INFO sqlalchemy.engine.Engine [cached since 0.01032s ago] ('documents', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-07-11 21:27:04,368 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-07-11 21:27:04,368 INFO sqlalchemy.engine.Engine [cached since 0.0119s ago] ('document_chunks', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-07-11 21:27:04,369 INFO sqlalchemy.engine.Engine SELECT pg_catalog.pg_class.relname 
+FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg_class.relnamespace 
+WHERE pg_catalog.pg_class.relname = $1::VARCHAR AND pg_catalog.pg_class.relkind = ANY (ARRAY[$2::VARCHAR, $3::VARCHAR, $4::VARCHAR, $5::VARCHAR, $6::VARCHAR]) AND pg_catalog.pg_table_is_visible(pg_catalog.pg_class.oid) AND pg_catalog.pg_namespace.nspname != $7::VARCHAR
+2026-07-11 21:27:04,369 INFO sqlalchemy.engine.Engine [cached since 0.01321s ago] ('agent_configs', 'r', 'p', 'f', 'v', 'm', 'pg_catalog')
+2026-07-11 21:27:04,371 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:04,377 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:04,388 INFO sqlalchemy.engine.Engine SELECT count(agent_configs.id) AS count_1 
+FROM agent_configs
+2026-07-11 21:27:04,388 INFO sqlalchemy.engine.Engine [generated in 0.00019s] ()
+2026-07-11 21:27:04,394 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+[Startup] Database initialized, Redis connected. Provider: qwen
+2026-07-11 21:27:09,753 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:09,757 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:09,757 INFO sqlalchemy.engine.Engine [generated in 0.00022s] (0, 5, 0)
+INFO:     127.0.0.1:63457 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:09,763 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:10,088 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:10,089 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:10,089 INFO sqlalchemy.engine.Engine [generated in 0.00025s] (5, 0)
+INFO:     127.0.0.1:63460 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-11 21:27:10,094 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63463 - "POST /api/v1/agents/tools HTTP/1.1" 200 OK
+2026-07-11 21:27:10,772 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:10,772 INFO sqlalchemy.engine.Engine SELECT 1
+2026-07-11 21:27:10,772 INFO sqlalchemy.engine.Engine [generated in 0.00011s] ()
+INFO:     127.0.0.1:63465 - "POST /api/v1/health HTTP/1.1" 200 OK
+2026-07-11 21:27:10,776 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:11,091 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:11,091 INFO sqlalchemy.engine.Engine SELECT 1
+2026-07-11 21:27:11,091 INFO sqlalchemy.engine.Engine [cached since 0.3185s ago] ()
+INFO:     127.0.0.1:63468 - "POST /api/v1/health HTTP/1.1" 200 OK
+2026-07-11 21:27:11,094 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:14,217 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:14,218 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:14,219 INFO sqlalchemy.engine.Engine [cached since 4.462s ago] (0, 50, 0)
+INFO:     127.0.0.1:63484 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:14,222 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:14,395 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:14,396 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:14,396 INFO sqlalchemy.engine.Engine [cached since 4.307s ago] (50, 0)
+2026-07-11 21:27:14,445 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:14,445 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:14,445 INFO sqlalchemy.engine.Engine [cached since 4.689s ago] (0, 50, 0)
+2026-07-11 21:27:14,446 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:14,447 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:14,447 INFO sqlalchemy.engine.Engine [cached since 4.358s ago] (50, 0)
+INFO:     127.0.0.1:63485 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-11 21:27:14,450 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63488 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:14,452 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63489 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-11 21:27:14,454 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:15,570 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:15,571 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:15,571 INFO sqlalchemy.engine.Engine [cached since 5.814s ago] (0, 50, 0)
+2026-07-11 21:27:15,572 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:15,573 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:15,573 INFO sqlalchemy.engine.Engine [cached since 5.484s ago] (50, 0)
+INFO:     127.0.0.1:63505 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:15,575 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:15,576 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:15,576 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:15,576 INFO sqlalchemy.engine.Engine [cached since 5.82s ago] (0, 50, 0)
+2026-07-11 21:27:15,577 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:15,577 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:15,577 INFO sqlalchemy.engine.Engine [cached since 5.488s ago] (50, 0)
+INFO:     127.0.0.1:63506 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-11 21:27:15,579 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63509 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:15,582 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63510 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-11 21:27:15,582 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:16,159 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,159 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:16,159 INFO sqlalchemy.engine.Engine [cached since 6.403s ago] (0, 50, 0)
+2026-07-11 21:27:16,163 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,164 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:16,164 INFO sqlalchemy.engine.Engine [cached since 6.075s ago] (50, 0)
+2026-07-11 21:27:16,166 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,166 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:16,166 INFO sqlalchemy.engine.Engine [cached since 6.41s ago] (0, 50, 0)
+INFO:     127.0.0.1:63517 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:16,168 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:16,168 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,169 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:16,169 INFO sqlalchemy.engine.Engine [cached since 6.08s ago] (50, 0)
+INFO:     127.0.0.1:63520 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-11 21:27:16,171 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63521 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:16,175 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63523 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-11 21:27:16,177 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:16,586 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,587 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:16,587 INFO sqlalchemy.engine.Engine [cached since 6.83s ago] (0, 50, 0)
+2026-07-11 21:27:16,588 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,588 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:16,588 INFO sqlalchemy.engine.Engine [cached since 6.499s ago] (50, 0)
+2026-07-11 21:27:16,589 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,589 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 21:27:16,589 INFO sqlalchemy.engine.Engine [cached since 6.833s ago] (0, 50, 0)
+2026-07-11 21:27:16,589 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 21:27:16,590 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-11 21:27:16,590 INFO sqlalchemy.engine.Engine [cached since 6.501s ago] (50, 0)
+INFO:     127.0.0.1:63532 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:16,591 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:63537 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63534 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63536 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 21:27:16,596 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:16,596 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 21:27:16,596 INFO sqlalchemy.engine.Engine COMMIT

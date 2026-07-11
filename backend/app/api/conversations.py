@@ -1,21 +1,32 @@
 """
-Conversation CRUD endpoints.
+Conversation CRUD endpoints — enterprise design.
+All operations use POST with JSON body. No IDs in URL paths.
 """
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Conversation, Message
-from app.schemas import ConversationCreate, ConversationOut, ConversationDetail, MessageOut
+from app.schemas import (
+    ConversationCreate,
+    ConversationOut,
+    ConversationDetail,
+    ConversationListRequest,
+    ConversationGetRequest,
+    ConversationDeleteRequest,
+    ConversationTitleUpdate,
+    MessageOut,
+)
 
 router = APIRouter()
 
 
-@router.post("", response_model=ConversationOut)
-@router.post("/", response_model=ConversationOut)
+# ---- Create ----
+
+@router.post("/create", response_model=ConversationOut)
 async def create_conversation(
     request: ConversationCreate,
     db: AsyncSession = Depends(get_db),
@@ -41,15 +52,14 @@ async def create_conversation(
     )
 
 
-@router.get("", response_model=list[ConversationOut])
-@router.get("/", response_model=list[ConversationOut])
+# ---- List ----
+
+@router.post("/list", response_model=list[ConversationOut])
 async def list_conversations(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    request: ConversationListRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """List all conversations, newest first."""
-    # Use a subquery to get message counts
+    """List all conversations (pagination in POST body)."""
     count_subq = (
         select(
             Message.conversation_id,
@@ -66,8 +76,8 @@ async def list_conversations(
         )
         .outerjoin(count_subq, count_subq.c.conversation_id == Conversation.id)
         .order_by(Conversation.updated_at.desc())
-        .offset(skip)
-        .limit(limit)
+        .offset(request.skip)
+        .limit(request.limit)
     )
     rows = result.all()
 
@@ -84,11 +94,16 @@ async def list_conversations(
     ]
 
 
-@router.get("/{conversation_id}", response_model=ConversationDetail)
-async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_db)):
-    """Get a conversation with all its messages."""
+# ---- Get ----
+
+@router.post("/get", response_model=ConversationDetail)
+async def get_conversation(
+    request: ConversationGetRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a conversation with all messages (id in POST body)."""
     result = await db.execute(
-        select(Conversation).where(Conversation.id == conversation_id)
+        select(Conversation).where(Conversation.id == request.id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -96,7 +111,7 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
 
     msgs_result = await db.execute(
         select(Message)
-        .where(Message.conversation_id == conversation_id)
+        .where(Message.conversation_id == request.id)
         .order_by(Message.id)
     )
     messages = msgs_result.scalars().all()
@@ -121,35 +136,41 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
     )
 
 
-@router.delete("/{conversation_id}")
-async def delete_conversation(conversation_id: str, db: AsyncSession = Depends(get_db)):
-    """Delete a conversation and all its messages."""
+# ---- Delete ----
+
+@router.post("/delete")
+async def delete_conversation(
+    request: ConversationDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a conversation (id in POST body)."""
     result = await db.execute(
-        select(Conversation).where(Conversation.id == conversation_id)
+        select(Conversation).where(Conversation.id == request.id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    await db.execute(delete(Conversation).where(Conversation.id == conversation_id))
+    await db.execute(delete(Conversation).where(Conversation.id == request.id))
     await db.commit()
     return {"detail": "Conversation deleted successfully"}
 
 
-@router.patch("/{conversation_id}/title")
+# ---- Update Title ----
+
+@router.post("/update-title")
 async def update_title(
-    conversation_id: str,
-    title: str,
+    request: ConversationTitleUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a conversation's title."""
+    """Update conversation title (title + id in POST body, never query string)."""
     result = await db.execute(
-        select(Conversation).where(Conversation.id == conversation_id)
+        select(Conversation).where(Conversation.id == request.conversation_id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    conv.title = title
+    conv.title = request.title
     await db.commit()
-    return {"detail": "Title updated", "title": title}
+    return {"detail": "Title updated", "title": request.title}

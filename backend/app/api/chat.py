@@ -18,11 +18,11 @@ import base64
 import mimetypes
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Header
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from app.database import async_session_factory
 from app.models import Conversation, Message, AgentConfig
@@ -142,6 +142,106 @@ def _image_url_to_data(url: str) -> str:
     return f"data:{mime_type};base64,{b64}"
 
 
+def _estimate_tokens(messages: list) -> int:
+    """Rough token estimate: total chars / 2 for mixed CN/EN."""
+    total = 0
+    for msg in messages:
+        total += len(msg.content or "")
+    return max(1, total // 2)
+
+
+async def _compress_context(
+    db_messages: list,
+    max_tokens: int,
+    conv_id: str,
+    keep_recent: int = 6,
+    threshold_ratio: float = 0.7,
+) -> list:
+    """
+    If conversation exceeds threshold_ratio of max_tokens, compress older messages
+    into a summary using the LLM. Returns the compressed message list.
+
+    Strategy: keep the last `keep_recent` messages as-is; summarize everything before that.
+    Replace summarized messages in DB with a single summary `Message`.
+    """
+    estimated = _estimate_tokens(db_messages)
+    if estimated < max_tokens * threshold_ratio:
+        return db_messages  # no compression needed
+
+    if len(db_messages) <= keep_recent:
+        return db_messages  # too few messages to compress
+
+    # Split: older messages to summarize, recent messages to keep
+    older = db_messages[:-keep_recent]
+    recent = db_messages[-keep_recent:]
+
+    # Skip if already compressed (check for summary marker)
+    if any("对话摘要:" in (m.content or "") and m.role == "system" for m in older):
+        return db_messages
+
+    # Build summary prompt
+    convo_text = []
+    for m in older:
+        role_label = "用户" if m.role == "user" else "助手"
+        convo_text.append(f"{role_label}: {m.content}")
+    convo_str = "\n".join(convo_text)
+
+    summary_prompt = (
+        "请将以下对话历史压缩为一段简洁的摘要，保留关键事实、用户偏好、决定和上下文：\n\n"
+        f"{convo_str}\n\n"
+        "摘要（用中文，200 字以内）："
+    )
+
+    # Call LLM for summarization
+    summary_text = f"对话摘要: (对话过长，已自动压缩。以下是历史要点)\n"
+    try:
+        from app.agent.llm import get_llm
+        llm = get_llm(provider=settings.llm_provider,
+                      temperature=0.3,
+                      max_tokens=300,
+                      has_images=False)
+        resp = await llm.ainvoke([HumanMessage(content=summary_prompt)])
+        summary_text += resp.content
+    except Exception as e:
+        print(f"[Chat] Context compression failed: {e}")
+        summary_text += convo_str[:1000]  # fallback: raw text truncation
+
+    # Replace older messages in DB with a single summary message
+    try:
+        async with async_session_factory() as db:
+            # Delete old summarized messages
+            older_ids = [m.id for m in older if m.id is not None]
+            if older_ids:
+                from sqlalchemy import delete
+                await db.execute(
+                    delete(Message).where(Message.id.in_(older_ids))
+                )
+            # Insert summary as system message (with a low id to sort before recent)
+            summary_msg = Message(
+                conversation_id=conv_id,
+                role="system",
+                content=summary_text,
+                metadata_={"compressed": True},
+            )
+            db.add(summary_msg)
+            await db.flush()
+            await db.commit()
+    except Exception as e:
+        print(f"[Chat] Failed to persist compressed context: {e}")
+
+    # Return: summary + recent messages (as DB models for consistency)
+    # Build a synthetic summary Message object for the response
+    class _SummaryMsg:
+        def __init__(self, content, role="system"):
+            self.content = content
+            self.role = role
+            self.id = None
+            self.metadata_ = {"compressed": True}
+
+    compressed = [_SummaryMsg(summary_text)] + list(recent)
+    return compressed
+
+
 def _messages_to_langchain(db_messages: list) -> list:
     """Convert DB Message records to LangChain message objects.
     Supports multimodal content (text + images)."""
@@ -172,6 +272,9 @@ def _messages_to_langchain(db_messages: list) -> list:
 
         elif msg.role == "assistant":
             result.append(AIMessage(content=msg.content))
+
+        elif msg.role == "system":
+            result.append(SystemMessage(content=msg.content))
 
     return result
 
@@ -205,7 +308,7 @@ def _build_user_message_content(request: ChatRequest) -> str:
     return content
 
 
-async def _prepare_chat(request: ChatRequest):
+async def _prepare_chat(request: ChatRequest, user_id: str = "default"):
     """
     Execute pre-stream DB operations: get/create conversation, save user message,
     load history, and build agent config.
@@ -259,7 +362,12 @@ async def _prepare_chat(request: ChatRequest):
             .where(Message.conversation_id == conv.id)
             .order_by(Message.id)
         )
-        db_messages = msgs_result.scalars().all()
+        db_messages = list(msgs_result.scalars().all())
+
+        # 5.5 Compress context if conversation is too long
+        max_t = agent.max_tokens if agent else 4096
+        db_messages = await _compress_context(db_messages, max_t, conv.id)
+
         langchain_messages = _messages_to_langchain(db_messages)
 
         await db.commit()
@@ -267,7 +375,7 @@ async def _prepare_chat(request: ChatRequest):
         # 6. Search long-term memories
         memory_context = ""
         try:
-            memories = await search_memories(request.message, user_id=conv.id)
+            memories = await search_memories(request.message, user_id=user_id)
             if memories:
                 memory_lines = []
                 for i, mem in enumerate(memories, 1):
@@ -306,7 +414,12 @@ async def _prepare_chat(request: ChatRequest):
 
 @router.post("")
 @router.post("/")
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    req: Request,
+    x_forwarded_for: str | None = Header(None),
+    x_real_ip: str | None = Header(None),
+):
     """
     Send a message (text + optional attachments) and receive streaming AI response.
 
@@ -317,11 +430,16 @@ async def chat(request: ChatRequest):
     Returns SSE stream with events:
     - conversation_id, rag_context, token, tool_start, done
     """
-    conversation_id, langchain_messages, agent_config, use_rag = await _prepare_chat(request)
+    # Use IP as stable user_id for cross-conversation memory
+    ip = x_real_ip or x_forwarded_for or req.client.host if req.client else "default"
+    if "," in (ip or ""):
+        ip = ip.split(",")[0].strip()
+
+    conversation_id, langchain_messages, agent_config, use_rag = await _prepare_chat(request, user_id=ip)
 
     if request.stream:
         return StreamingResponse(
-            _stream_response(conversation_id, langchain_messages, agent_config, use_rag),
+            _stream_response(conversation_id, langchain_messages, agent_config, use_rag, user_id=ip),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -358,7 +476,7 @@ async def chat(request: ChatRequest):
         }
 
 
-async def _stream_response(conversation_id, messages, agent_config, use_rag):
+async def _stream_response(conversation_id, messages, agent_config, use_rag, user_id="default"):
     """Generator that yields SSE-formatted events from the agent."""
     yield f"data: {json.dumps({'type': 'conversation_id', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
 
@@ -431,7 +549,7 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag):
                                     {"role": "user", "content": last_user.content},
                                     {"role": "assistant", "content": full_response},
                                 ],
-                                user_id=conversation_id,
+                                user_id=user_id,
                             )
                     except Exception as e:
                         print(f"[Chat] Memory save failed: {e}")

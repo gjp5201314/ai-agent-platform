@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Cpu, User, Wrench, FileText } from "lucide-react";
@@ -9,6 +10,13 @@ interface Props {
 }
 
 export function MessageList({ messages, isStreaming }: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom on new messages or entering conversation
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: isStreaming ? "auto" : "instant" as any });
+  }, [messages, isStreaming]);
+
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center relative z-10">
@@ -59,6 +67,7 @@ export function MessageList({ messages, isStreaming }: Props) {
           isStreaming={isStreaming && idx === messages.length - 1 && msg.role === "assistant"}
         />
       ))}
+      <div ref={bottomRef} />
     </div>
   );
 }

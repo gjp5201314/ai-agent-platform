@@ -1,4 +1,4 @@
-"""Health check endpoints."""
+"""Health check endpoints — POST only, no params exposed in URL."""
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,10 +11,9 @@ from app.schemas import HealthCheck
 router = APIRouter()
 
 
-@router.get("/health", response_model=HealthCheck)
-@router.get("/", response_model=HealthCheck)
+@router.post("/health", response_model=HealthCheck)
 async def health_check(db: AsyncSession = Depends(get_db)):
-    """Check service health: database, redis, LLM config."""
+    """Check service health (POST — no sensitive data in URL)."""
     db_status = "unknown"
     redis_status = "unknown"
 

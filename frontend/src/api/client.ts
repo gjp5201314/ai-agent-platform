@@ -7,17 +7,20 @@ import type {
   Attachment,
 } from "../types";
 
-const API_BASE = "/api";
+const API_BASE = "/api/v1";
+
+// ============================================================
+//  Security: all operations use POST with JSON body.
+//  No IDs, tokens, or query params ever appear in URLs.
+// ============================================================
 
 // ---- Generic fetch helper ----
 
-async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+async function fetchJSON<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : "{}",
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -80,13 +83,15 @@ export async function* streamChat(
   }
 }
 
-// ---- Conversations ----
+// ============================================================
+//  API surface — all POST, all JSON body
+// ============================================================
 
 export const api = {
   // Chat
   streamChat,
 
-  // File upload for chat attachments
+  // File upload for chat attachments (multipart — required for file binary)
   uploadAttachment: async (file: File): Promise<Attachment> => {
     const formData = new FormData();
     formData.append("file", file);
@@ -101,50 +106,59 @@ export const api = {
     return res.json();
   },
 
-  // Conversations
-  listConversations: () =>
-    fetchJSON<Conversation[]>(`${API_BASE}/conversations`),
+  // ---- Conversations (all POST body) ----
+
+  listConversations: (skip = 0, limit = 50) =>
+    fetchJSON<Conversation[]>(`${API_BASE}/conversations/list`, { skip, limit }),
 
   getConversation: (id: string) =>
-    fetchJSON<Conversation>(`${API_BASE}/conversations/${id}`),
+    fetchJSON<Conversation>(`${API_BASE}/conversations/get`, { id }),
 
   createConversation: (title: string, agentId?: string) =>
-    fetchJSON<Conversation>(`${API_BASE}/conversations`, {
-      method: "POST",
-      body: JSON.stringify({ title, agent_id: agentId }),
+    fetchJSON<Conversation>(`${API_BASE}/conversations/create`, {
+      title,
+      agent_id: agentId ?? null,
     }),
 
   deleteConversation: (id: string) =>
-    fetchJSON<{ detail: string }>(`${API_BASE}/conversations/${id}`, {
-      method: "DELETE",
+    fetchJSON<{ detail: string }>(`${API_BASE}/conversations/delete`, { id }),
+
+  updateTitle: (conversationId: string, title: string) =>
+    fetchJSON<{ detail: string }>(`${API_BASE}/conversations/update-title`, {
+      conversation_id: conversationId,
+      title,
     }),
 
-  updateTitle: (id: string, title: string) =>
-    fetchJSON<{ detail: string }>(
-      `${API_BASE}/conversations/${id}/title?title=${encodeURIComponent(title)}`,
-      { method: "PATCH" }
-    ),
+  // ---- Documents / RAG (all POST body) ----
 
-  // Documents / RAG
-  listDocuments: () =>
-    fetchJSON<Document[]>(`${API_BASE}/rag/documents`),
+  listDocuments: (skip = 0, limit = 50) =>
+    fetchJSON<Document[]>(`${API_BASE}/rag/documents/list`, { skip, limit }),
 
   uploadDocument: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    return fetch(`${API_BASE}/rag/upload`, {
+    return fetch(`${API_BASE}/rag/documents/upload`, {
       method: "POST",
       body: formData,
     }).then((r) => {
-      if (!r.ok) return r.json().then((e) => { throw new Error(e.detail || "Upload failed"); });
+      if (!r.ok)
+        return r
+          .json()
+          .then((e) => {
+            throw new Error(e.detail || "Upload failed");
+          });
       return r.json();
     });
   },
 
+  getDocument: (id: string) =>
+    fetchJSON<Document>(`${API_BASE}/rag/documents/get`, { id }),
+
   deleteDocument: (id: string) =>
-    fetchJSON<{ detail: string }>(`${API_BASE}/rag/documents/${id}`, {
-      method: "DELETE",
-    }),
+    fetchJSON<{ detail: string }>(`${API_BASE}/rag/documents/delete`, { id }),
+
+  searchRag: (query: string, topK = 4) =>
+    fetchJSON(`${API_BASE}/rag/search`, { query, top_k: topK }),
 
   getRagStats: () =>
     fetchJSON<{
@@ -153,32 +167,30 @@ export const api = {
       total_size_mb: number;
     }>(`${API_BASE}/rag/stats`),
 
-  // Agents
-  listAgents: () => fetchJSON<AgentConfig[]>(`${API_BASE}/agents`),
+  // ---- Agents (all POST body) ----
+
+  listAgents: (skip = 0, limit = 50) =>
+    fetchJSON<AgentConfig[]>(`${API_BASE}/agents/list`, { skip, limit }),
 
   getAgent: (id: string) =>
-    fetchJSON<AgentConfig>(`${API_BASE}/agents/${id}`),
+    fetchJSON<AgentConfig>(`${API_BASE}/agents/get`, { id }),
 
   createAgent: (data: Partial<AgentConfig>) =>
-    fetchJSON<AgentConfig>(`${API_BASE}/agents`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    fetchJSON<AgentConfig>(`${API_BASE}/agents/create`, data),
 
-  updateAgent: (id: string, data: Partial<AgentConfig>) =>
-    fetchJSON<AgentConfig>(`${API_BASE}/agents/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
+  updateAgent: (agentId: string, data: Partial<AgentConfig>) =>
+    fetchJSON<AgentConfig>(`${API_BASE}/agents/update`, {
+      agent_id: agentId,
+      ...data,
     }),
 
   deleteAgent: (id: string) =>
-    fetchJSON<{ detail: string }>(`${API_BASE}/agents/${id}`, {
-      method: "DELETE",
-    }),
+    fetchJSON<{ detail: string }>(`${API_BASE}/agents/delete`, { id }),
 
   listTools: () =>
     fetchJSON<{ tools: ToolInfo[] }>(`${API_BASE}/agents/tools`),
 
-  // Health
+  // ---- Health ----
+
   healthCheck: () => fetchJSON<any>(`${API_BASE}/health`),
 };

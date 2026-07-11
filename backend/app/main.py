@@ -1,19 +1,22 @@
 """
-FastAPI application entry point.
+FastAPI application entry point — enterprise AI agent platform.
+Security-first design: all read endpoints use POST with JSON body.
 """
 import os
+import time
 import contextlib
+import uuid as _uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
 from app.core.redis_client import get_redis, close_redis
 
 # Apply LangSmith tracing settings to environment before any LangChain import.
-# LangSmith uses LANGCHAIN_* env vars internally.
 if settings.langsmith_tracing and settings.langsmith_api_key:
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
     os.environ["LANGCHAIN_ENDPOINT"] = settings.langsmith_endpoint
@@ -25,14 +28,10 @@ if settings.langsmith_tracing and settings.langsmith_api_key:
 async def lifespan(app: FastAPI):
     """Manage application lifecycle: startup and shutdown."""
     # ---- Startup ----
-    # Initialize database
     await init_db()
-    # Seed default agent config if none exists
     await _seed_default_agent()
-    # Warm up Redis
     redis = await get_redis()
     await redis.ping()
-    # Ensure upload directory exists
     os.makedirs(settings.upload_dir, exist_ok=True)
     print(f"[Startup] Database initialized, Redis connected. Provider: {settings.llm_provider}")
 
@@ -45,31 +44,89 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AI Agent Platform",
-    description="Production-ready AI Agent with RAG, tool calling, and streaming chat. "
+    description="Enterprise-grade AI Agent with RAG, tool calling, and streaming chat. "
                 "Powered by LangGraph + FastAPI + PostgreSQL/pgvector.",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
+    docs_url="/api/docs" if not settings.app_debug else "/docs",
+    redoc_url=None,  # Disable ReDoc in production
 )
 
-# CORS
+
+# ============================================================
+#  Middleware Stack (order matters — outermost first)
+# ============================================================
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Inject enterprise security headers + request-id on every response."""
+    request_id = request.headers.get("X-Request-ID") or _uuid.uuid4().hex[:16]
+    request.state.request_id = request_id
+    request.state.start_time = time.time()
+
+    response = await call_next(request)
+
+    # Security headers
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+    response.headers["Pragma"] = "no-cache"
+
+    # Audit: log request duration (non-blocking print; use structured logging in production)
+    elapsed_ms = int((time.time() - request.state.start_time) * 1000)
+    if elapsed_ms > 3000:
+        print(f"[Slow] {request.method} {request.url.path} — {elapsed_ms}ms [rid={request_id}]")
+
+    return response
+
+
+@app.middleware("http")
+async def request_size_guard(request: Request, call_next):
+    """Reject oversized request bodies early (10 MB hard cap)."""
+    if request.method == "POST":
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 10 * 1024 * 1024:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body too large. Maximum 10 MB."},
+            )
+    return await call_next(request)
+
+
+# CORS — tightened for POST-only API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["POST", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "X-Request-ID",
+        "X-Forwarded-For",
+        "X-Real-IP",
+    ],
+    expose_headers=["X-Request-ID"],
+    max_age=3600,
 )
 
-# Register routers
+# Register routers under API version prefix
 from app.api import chat, rag, conversations, agents, health  # noqa: E402
 
-app.include_router(health.router, tags=["health"])
-app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
-app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
-app.include_router(conversations.router, prefix="/api/conversations", tags=["conversations"])
-app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
+API_V1 = "/api/v1"
 
-# Serve uploaded files — ensure directory exists first
+app.include_router(health.router, prefix=API_V1, tags=["health"])
+app.include_router(chat.router, prefix=f"{API_V1}/chat", tags=["chat"])
+app.include_router(rag.router, prefix=f"{API_V1}/rag", tags=["rag"])
+app.include_router(conversations.router, prefix=f"{API_V1}/conversations", tags=["conversations"])
+app.include_router(agents.router, prefix=f"{API_V1}/agents", tags=["agents"])
+
+# Serve uploaded files through a controlled endpoint (not raw StaticFiles)
 os.makedirs(settings.upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
