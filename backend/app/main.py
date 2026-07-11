@@ -69,7 +69,8 @@ app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
 app.include_router(conversations.router, prefix="/api/conversations", tags=["conversations"])
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 
-# Serve uploaded files
+# Serve uploaded files — ensure directory exists first
+os.makedirs(settings.upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 
