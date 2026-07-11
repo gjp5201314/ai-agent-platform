@@ -52,6 +52,13 @@ services:
     restart: unless-stopped
     env_file:
       - ./backend/.env
+    environment:
+      # Docker 环境强制覆盖 — 无视 .env 中的 localhost 开发配置
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      APP_HOST: "0.0.0.0"
+      APP_DEBUG: "false"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-agent}:${POSTGRES_PASSWORD:-changeme_strong_password}@postgres:5432/${POSTGRES_DB:-aiagent}"
     depends_on:
       postgres:
         condition: service_healthy
