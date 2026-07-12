@@ -7,6 +7,7 @@ export function useChat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
@@ -66,6 +67,9 @@ export function useChat() {
                 return updated;
               });
               break;
+            case "agent_switch":
+              setActiveAgentId(event.to_agent);
+              break;
             case "done":
               if (event.sources.length) {
                 receivedSources = event.sources;
@@ -123,6 +127,7 @@ export function useChat() {
     setMessages([]);
     setConversationId(null);
     setSources([]);
+    setActiveAgentId(null);
   }, []);
 
   return {
@@ -130,6 +135,7 @@ export function useChat() {
     isStreaming,
     conversationId,
     sources,
+    activeAgentId,
     sendMessage,
     stopStreaming,
     loadConversation,

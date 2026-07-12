@@ -494,6 +494,8 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag, use
                     yield f"data: {json.dumps({'type': 'token', 'content': event['content']}, ensure_ascii=False)}\n\n"
                 elif event["type"] == "tool_start":
                     yield f"data: {json.dumps({'type': 'tool_start', 'name': event['name'], 'args': event['args']}, ensure_ascii=False)}\n\n"
+                elif event["type"] == "agent_switch":
+                    yield f"data: {json.dumps({'type': 'agent_switch', 'to_agent': event.get('to_agent', ''), 'task': event.get('task', '')}, ensure_ascii=False)}\n\n"
                 elif event["type"] == "done":
                     if event.get("sources"):
                         sources = event["sources"]

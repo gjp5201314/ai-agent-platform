@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Square, Database, Sparkles, Paperclip, X, FileText, ChevronDown, Cpu, Check, Settings } from "lucide-react";
+import { Send, Square, Database, Paperclip, X, FileText, ChevronDown, Cpu, Check, Settings } from "lucide-react";
 import { api } from "../api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -140,14 +140,14 @@ export function MessageInput({
   };
 
   return (
-    <div className="px-4 pb-4 pt-2">
+    <div className="px-4 pb-4">
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {attachments.map((att) => (
               <div
                 key={att.id}
-                className="relative group rounded-lg overflow-hidden border bg-card/50"
+                className="relative group rounded-lg overflow-hidden border border-gray-200 bg-white"
               >
                 {isImage(att) ? (
                   <div className="w-20 h-20">
@@ -155,10 +155,10 @@ export function MessageInput({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 px-3 py-2 min-w-[120px]">
-                    <FileText size={16} className="text-muted-foreground flex-shrink-0" />
+                    <FileText size={16} className="text-gray-400 flex-shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-[10px] text-muted-foreground truncate max-w-[100px]">{att.filename}</p>
-                      <p className="text-[9px] text-muted-foreground/50">{formatSize(att.size)}</p>
+                      <p className="text-[10px] text-gray-500 truncate max-w-[100px]">{att.filename}</p>
+                      <p className="text-[9px] text-gray-300">{formatSize(att.size)}</p>
                     </div>
                   </div>
                 )}
@@ -166,7 +166,7 @@ export function MessageInput({
                   type="button"
                   onClick={() => removeAttachment(att.id)}
                   className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full
-                             bg-black/60 text-white/80 hover:bg-black/80
+                             bg-gray-800/60 text-white hover:bg-gray-800
                              flex items-center justify-center
                              opacity-0 group-hover:opacity-100 transition-opacity"
                 >
@@ -179,24 +179,23 @@ export function MessageInput({
 
         <div className="relative">
           {useRag && (
-            <div className="absolute -top-3.5 left-3 z-10 flex items-center gap-1.5
+            <div className="absolute -top-3 left-3 z-10 flex items-center gap-1.5
                             px-2.5 py-0.5 rounded-full
-                            bg-emerald-500/10 border border-emerald-500/30
-                            text-emerald-500 text-[10px] font-medium tracking-wider
-                            shadow-[0_0_12px_rgba(0,230,118,0.3)] backdrop-blur">
+                            bg-emerald-50 border border-emerald-200
+                            text-emerald-600 text-[10px] font-medium">
               <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-ping" />
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
               </span>
               知识库检索已开启
             </div>
           )}
 
-          <div className={`relative rounded-xl bg-card border transition-all overflow-hidden
+          <div className={`relative rounded-xl bg-white border transition-all overflow-hidden
                           ${useRag
-                            ? "border-emerald-500/30 ring-1 ring-emerald-500/10"
-                            : "focus-within:border-primary/30 focus-within:ring-1 focus-within:ring-primary/20"}`}>
-            <div className="flex items-end gap-1.5 p-2">
+                            ? "border-emerald-300 ring-1 ring-emerald-100"
+                            : "border-gray-200 focus-within:border-ds-400 focus-within:ring-2 focus-within:ring-ds-100"}`}>
+            <div className="flex items-end gap-1.5 p-2.5">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -211,11 +210,11 @@ export function MessageInput({
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex-shrink-0 h-10 w-10 text-muted-foreground hover:text-primary"
+                className="flex-shrink-0 h-9 w-9 text-gray-400 hover:text-ds-500 hover:bg-ds-50"
                 title="上传图片或文件"
               >
                 {uploading ? (
-                  <div className="w-4 h-4 border-2 border-primary/50 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-ds-400 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Paperclip size={18} />
                 )}
@@ -235,12 +234,12 @@ export function MessageInput({
                   }
                   rows={1}
                   className="resize-none bg-transparent border-0 shadow-none focus-visible:ring-0
-                             px-1 py-2 text-sm placeholder:text-muted-foreground/50 min-h-0"
+                             px-1 py-1.5 text-sm placeholder:text-gray-300 min-h-0"
                   disabled={isStreaming}
                 />
               </div>
 
-              <div className="flex items-center gap-1 pr-1">
+              <div className="flex items-center gap-1">
                 <ModelSelector
                   value={modelProvider}
                   onChange={onModelProviderChange}
@@ -253,17 +252,17 @@ export function MessageInput({
                   size="sm"
                   onClick={onToggleRag}
                   title={useRag ? "点击关闭知识库检索" : "点击开启知识库检索"}
-                  className={`relative gap-1.5 text-xs h-9 transition-all ${
+                  className={`relative gap-1.5 text-xs h-8 transition-all ${
                     useRag
-                      ? "text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 hover:text-emerald-400 shadow-[0_0_10px_rgba(0,230,118,0.25)]"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-700"
+                      : "text-gray-400 hover:text-gray-600"
                   }`}
                 >
                   <Database size={14} />
                   <span className="hidden sm:inline font-medium">RAG</span>
                   {useRag && (
                     <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full
-                                     bg-emerald-500 ring-2 ring-card animate-pulse" />
+                                     bg-emerald-500 ring-2 ring-white" />
                   )}
                 </Button>
 
@@ -273,30 +272,29 @@ export function MessageInput({
                     variant="destructive"
                     size="icon"
                     onClick={onStop}
-                    className="h-10 w-10"
+                    className="h-9 w-9 shadow-sm"
                     title="停止生成"
                   >
-                    <Square size={16} />
+                    <Square size={15} />
                   </Button>
                 ) : (
                   <Button
                     type="submit"
                     size="icon"
                     disabled={!input.trim() && attachments.length === 0}
-                    className="h-10 w-10"
+                    className="h-9 w-9 bg-ds-500 hover:bg-ds-600 shadow-sm"
                     title="发送"
                   >
-                    <Send size={16} />
+                    <Send size={15} />
                   </Button>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <Sparkles size={10} className="text-muted-foreground/20" />
-            <span className="text-[10px] text-muted-foreground/30 tracking-wider">
-              Enter 发送 · Shift+Enter 换行 · 📎 上传/Ctrl+V 粘贴图片
+          <div className="flex items-center justify-center gap-1.5 mt-2">
+            <span className="text-[10px] text-gray-300">
+              Enter 发送 · Shift+Enter 换行 · 支持上传文件/粘贴图片
             </span>
           </div>
         </div>
@@ -306,7 +304,7 @@ export function MessageInput({
 }
 
 /* ============================================================
-   ModelSelector — custom dark dropdown matching app aesthetic
+   ModelSelector — clean light dropdown
    ============================================================ */
 function ModelSelector({
   value, onChange, onOpenAdmin,
@@ -342,58 +340,56 @@ function ModelSelector({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className={`group h-9 px-2.5 rounded-lg flex items-center gap-1.5
+        className={`group h-8 px-2.5 rounded-lg flex items-center gap-1.5
                     text-xs font-medium transition-all
                     ${open
-                      ? "bg-cyber-500/10 text-cyber-400 ring-1 ring-cyber-500/30"
+                      ? "bg-ds-50 text-ds-600 ring-1 ring-ds-200"
                       : active
-                        ? "text-foreground bg-surface-700/40 hover:bg-surface-700/70"
-                        : "text-muted-foreground hover:text-foreground hover:bg-surface-700/40"
+                        ? "text-gray-700 bg-gray-50 hover:bg-gray-100"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
                     }`}
         title="选择大模型"
       >
-        <Cpu size={13} className={open || active ? "text-cyber-400" : ""} />
+        <Cpu size={13} className={open || active ? "text-ds-500" : ""} />
         <span className="hidden md:inline max-w-[80px] truncate">{label}</span>
-        <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : "opacity-50"}`} />
+        <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <div
           className="absolute right-0 bottom-full mb-1.5 w-56
                       rounded-lg overflow-hidden
-                      bg-[#0b0b16]/95 backdrop-blur-xl
-                      border border-white/10
-                      shadow-[0_8px_32px_rgba(0,0,0,0.5),0_0_0_1px_rgba(0,229,255,0.08)]
-                      z-50"
+                      bg-white border border-gray-200
+                      shadow-xl z-50"
         >
-          <div className="px-3 py-2 text-[10px] text-white/30 tracking-widest uppercase border-b border-white/5">
+          <div className="px-3 py-2 text-[10px] text-gray-400 font-medium border-b border-gray-100">
             切换模型
           </div>
 
           <button
             onClick={() => { onChange(null); setOpen(false); }}
             className="w-full px-3 py-2 flex items-center gap-2 text-xs text-left
-                       text-white/70 hover:bg-white/5 transition-colors"
+                       text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+            <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
             <span className="flex-1">使用默认</span>
-            {!active && <Check size={12} className="text-cyber-400" />}
+            {!active && <Check size={12} className="text-ds-500" />}
           </button>
 
-          <div className="border-t border-white/5">
+          <div className="border-t border-gray-100">
             {providers.map((p) => (
               <button
                 key={p.id}
                 onClick={() => { onChange(p.id); setOpen(false); }}
                 className="w-full px-3 py-2 flex items-center gap-2 text-xs text-left
-                           text-white/70 hover:bg-white/5 transition-colors"
+                           text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                <div className={`w-1.5 h-1.5 rounded-full ${value === p.id ? "bg-cyber-400 shadow-[0_0_6px_rgba(0,229,255,0.6)]" : "bg-white/20"}`} />
+                <div className={`w-1.5 h-1.5 rounded-full ${value === p.id ? "bg-ds-500" : "bg-gray-300"}`} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-white/90">{p.name}</div>
-                  <div className="text-[10px] text-white/30 truncate">{p.default_model}</div>
+                  <div className="text-gray-700">{p.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">{p.default_model}</div>
                 </div>
-                {value === p.id && <Check size={12} className="text-cyber-400 flex-shrink-0" />}
+                {value === p.id && <Check size={12} className="text-ds-500 flex-shrink-0" />}
               </button>
             ))}
           </div>
@@ -401,8 +397,8 @@ function ModelSelector({
           <button
             onClick={() => { setOpen(false); onOpenAdmin(); }}
             className="w-full px-3 py-2 flex items-center gap-2 text-xs text-left
-                       text-white/40 hover:text-cyber-400 hover:bg-white/5 transition-colors
-                       border-t border-white/5"
+                       text-gray-400 hover:text-ds-500 hover:bg-gray-50 transition-colors
+                       border-t border-gray-100"
           >
             <Settings size={12} />
             <span className="flex-1">管理模型</span>

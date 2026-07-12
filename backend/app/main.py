@@ -156,8 +156,9 @@ async def _seed_default_agent():
                 ),
                 temperature=0.7,
                 max_tokens=4096,
-                enabled_tools=["rag", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke"],
+                enabled_tools=["rag", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke", "delegate_to_agent"],
                 is_default=True,
+                allow_delegation=True,
             )
             db.add(default_agent)
             await db.commit()
@@ -186,6 +187,7 @@ async def _seed_default_agent():
                 rag_similarity_threshold=0.3,  # Lower threshold for broader matching
                 is_default=False,
                 is_protected=True,
+                allow_delegation=True,
             )
             db.add(rag_agent)
             await db.commit()

@@ -2,10 +2,10 @@
 @import "shadcn/tailwind.css";
 @import "tailwindcss";
 
-/* ===== Ant Design is no longer used — removed legacy override ===== */
+/* ===== Dialog overlay ===== */
 [data-slot="dialog-overlay"] {
-  background-color: rgba(0, 0, 0, 0.65) !important;
-  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(2px);
 }
 
 /* ===== Base ===== */
@@ -19,12 +19,12 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: #0b0b16;
-  color: #e6e8ee;
+  background: #f5f5f5;
+  color: #1f2937;
   overflow: hidden;
 }
 
-/* ===== Scrollbar - Cyber Style ===== */
+/* ===== Scrollbar - Clean ===== */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -33,169 +33,68 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 229, 255, 0.2);
+  background: #d1d5db;
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 229, 255, 0.4);
+  background: #9ca3af;
 }
 
 /* ===== Selection ===== */
 ::selection {
-  background: rgba(0, 229, 255, 0.3);
-  color: #fff;
+  background: rgba(77, 107, 254, 0.2);
+  color: #1f2937;
 }
 
-/* ===== Glass Panel Utility ===== */
-@layer components {
-  .glass-panel {
-    @apply bg-surface-700/80 backdrop-blur-xl border border-white/[0.10];
-  }
-
-  .glass-panel-strong {
-    @apply bg-surface-800/95 backdrop-blur-2xl border border-white/[0.12];
-  }
-
-  .glass-input {
-    @apply bg-surface-800/80 backdrop-blur-md border border-white/[0.15]
-           focus:border-cyber-400/60 focus:ring-1 focus:ring-cyber-400/40
-           transition-all duration-300;
-  }
-}
-
-/* ===== Animated Grid Background ===== */
-.bg-cyber-grid-animated {
-  background-image:
-    linear-gradient(rgba(0, 229, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 229, 255, 0.04) 1px, transparent 1px);
-  background-size: 50px 50px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 20%, transparent 60%);
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 20%, transparent 60%);
-}
-
-/* ===== Scan Line Effect ===== */
-.scan-line-container {
-  position: relative;
-  overflow: hidden;
-}
-.scan-line-container::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.15), transparent);
-  animation: scanLine 8s linear infinite;
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* ===== Neon Divider ===== */
-.neon-divider {
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 229, 255, 0.3),
-    rgba(124, 77, 255, 0.3),
-    transparent
-  );
-}
-
-/* ===== Neon Text Glow ===== */
-.neon-text-cyan {
-  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5), 0 0 20px rgba(0, 229, 255, 0.3);
-}
-
-.neon-text-purple {
-  text-shadow: 0 0 10px rgba(124, 77, 255, 0.5), 0 0 20px rgba(124, 77, 255, 0.3);
-}
-
-/* ===== Corner Decor ===== */
-.corner-decor::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 12px;
-  height: 12px;
-  border-top: 2px solid rgba(0, 229, 255, 0.5);
-  border-left: 2px solid rgba(0, 229, 255, 0.5);
-}
-.corner-decor::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  width: 12px;
-  height: 12px;
-  border-top: 2px solid rgba(0, 229, 255, 0.5);
-  border-right: 2px solid rgba(0, 229, 255, 0.5);
-}
-
-/* ===== Markdown Content - Cyber Theme ===== */
+/* ===== Markdown Content - Clean Style ===== */
 .markdown-body {
   line-height: 1.75;
-  font-size: 0.95rem;
-  color: #d1d5db;
+  font-size: 0.9375rem;
+  color: #374151;
 }
 .markdown-body p {
-  /* margin-bottom: 0.75rem; */
+  margin-bottom: 0.5rem;
 }
 .markdown-body h1,
 .markdown-body h2,
 .markdown-body h3,
 .markdown-body h4 {
   font-weight: 600;
-  margin-top: 1.2rem;
-  margin-bottom: 0.6rem;
-  color: #e5e7eb;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #111827;
 }
 .markdown-body h1 {
   font-size: 1.5rem;
-  background: linear-gradient(135deg, #00e5ff, #7c4dff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 .markdown-body h2 {
   font-size: 1.25rem;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.15);
+  border-bottom: 1px solid #e5e7eb;
   padding-bottom: 0.3rem;
 }
 .markdown-body h3 {
   font-size: 1.1rem;
 }
 .markdown-body code {
-  background: rgba(0, 229, 255, 0.1);
-  color: #00e5ff;
+  background: #f3f4f6;
+  color: #4D6BFE;
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
   font-size: 0.85em;
   font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
-  border: 1px solid rgba(0, 229, 255, 0.15);
+  border: 1px solid #e5e7eb;
 }
 .markdown-body pre {
-  background: #0d0d1a;
-  border: 1px solid rgba(0, 229, 255, 0.12);
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   padding: 1rem 1.2rem;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow-x: auto;
   margin-bottom: 0.85rem;
-  position: relative;
-}
-.markdown-body pre::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.2), transparent);
 }
 .markdown-body pre code {
   background: transparent;
-  color: #b0bec5;
+  color: #374151;
   padding: 0;
   border: none;
   font-size: 0.85em;
@@ -206,23 +105,23 @@ body {
   margin-bottom: 0.75rem;
 }
 .markdown-body li::marker {
-  color: #00e5ff;
+  color: #4D6BFE;
 }
 .markdown-body a {
-  color: #00e5ff;
+  color: #4D6BFE;
   text-decoration: none;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+  border-bottom: 1px solid rgba(77, 107, 254, 0.3);
   transition: border-color 0.2s;
 }
 .markdown-body a:hover {
-  border-bottom-color: #00e5ff;
+  border-bottom-color: #4D6BFE;
 }
 .markdown-body blockquote {
-  border-left: 3px solid rgba(124, 77, 255, 0.5);
+  border-left: 3px solid #4D6BFE;
   padding-left: 1rem;
-  color: #9ca3af;
+  color: #6b7280;
   margin-bottom: 0.85rem;
-  background: rgba(124, 77, 255, 0.05);
+  background: #f9fafb;
   padding: 0.6rem 1rem;
   border-radius: 0 8px 8px 0;
 }
@@ -233,37 +132,37 @@ body {
   font-size: 0.9rem;
 }
 .markdown-body th {
-  background: rgba(0, 229, 255, 0.1);
-  border: 1px solid rgba(0, 229, 255, 0.12);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   padding: 0.5rem 0.75rem;
   text-align: left;
-  color: #00e5ff;
+  color: #374151;
   font-weight: 600;
 }
 .markdown-body td {
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid #e5e7eb;
   padding: 0.4rem 0.75rem;
 }
 .markdown-body tr:hover td {
-  background: rgba(0, 229, 255, 0.03);
+  background: #f9fafb;
 }
 .markdown-body hr {
   border: none;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.2), transparent);
+  background: #e5e7eb;
   margin: 1rem 0;
 }
 .markdown-body strong {
-  color: #e5e7eb;
+  color: #111827;
 }
 
-/* ===== Range Input - Cyber ===== */
+/* ===== Range Input ===== */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 3px;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
   outline: none;
 }
 input[type="range"]::-webkit-slider-thumb {
@@ -272,49 +171,19 @@ input[type="range"]::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #00e5ff;
+  background: #4D6BFE;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   transition: box-shadow 0.2s;
 }
 input[type="range"]::-webkit-slider-thumb:hover {
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.6);
+  box-shadow: 0 2px 6px rgba(77, 107, 254, 0.3);
 }
 
-/* ===== Checkbox - Cyber ===== */
+/* ===== Checkbox ===== */
 input[type="checkbox"] {
-  accent-color: #00e5ff;
-}
-
-/* ===== Particle Dots Background ===== */
-.particle-dots {
-  position: relative;
-}
-.particle-dots::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(0, 229, 255, 0.08) 1px, transparent 1px);
-  background-size: 20px 20px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* ===== Glowing border card ===== */
-.glow-border {
-  position: relative;
-}
-.glow-border::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(0, 229, 255, 0.3), rgba(124, 77, 255, 0.3), rgba(0, 229, 255, 0.1));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+  accent-color: #4D6BFE;
 }
 
 @layer base {
@@ -324,57 +193,57 @@ input[type="checkbox"] {
       "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   }
   :root {
-    /* === Backgrounds (dark, with enough contrast) === */
-    --background: #0b0b16;
-    --foreground: #e6e8ee;
-    --card: #14141f;
-    --card-foreground: #e6e8ee;
-    --popover: #1a1a28;
-    --popover-foreground: #e6e8ee;
+    /* === Backgrounds === */
+    --background: #ffffff;
+    --foreground: #1f2937;
+    --card: #ffffff;
+    --card-foreground: #1f2937;
+    --popover: #ffffff;
+    --popover-foreground: #1f2937;
 
-    /* === Primary: bright cyan === */
-    --primary: #00e5ff;
-    --primary-foreground: #0b0b16;
+    /* === Primary: DeepSeek blue === */
+    --primary: #4D6BFE;
+    --primary-foreground: #ffffff;
 
-    /* === Secondary: subtle dark === */
-    --secondary: #1e1e2e;
-    --secondary-foreground: #e6e8ee;
+    /* === Secondary === */
+    --secondary: #f3f4f6;
+    --secondary-foreground: #374151;
 
     /* === Muted === */
-    --muted: #1a1a26;
-    --muted-foreground: #9098a8;
+    --muted: #f9fafb;
+    --muted-foreground: #9ca3af;
 
-    /* === Accent: bright purple === */
-    --accent: #a78bff;
-    --accent-foreground: #0b0b16;
+    /* === Accent === */
+    --accent: #f3f4f6;
+    --accent-foreground: #374151;
 
     /* === Destructive === */
-    --destructive: #ff4d6d;
+    --destructive: #ef4444;
     --destructive-foreground: #ffffff;
 
-    /* === Borders & inputs (more visible) === */
-    --border: rgba(255, 255, 255, 0.12);
-    --input: rgba(255, 255, 255, 0.10);
-    --ring: #00e5ff;
+    /* === Borders & inputs === */
+    --border: #e5e7eb;
+    --input: #e5e7eb;
+    --ring: #4D6BFE;
 
     /* === Charts === */
-    --chart-1: #00e5ff;
-    --chart-2: #a78bff;
-    --chart-3: #ff4d6d;
-    --chart-4: #6ee7b7;
-    --chart-5: #fbbf24;
+    --chart-1: #4D6BFE;
+    --chart-2: #8b5cf6;
+    --chart-3: #ef4444;
+    --chart-4: #10b981;
+    --chart-5: #f59e0b;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
 
     /* === Sidebar === */
-    --sidebar: #0b0b16;
-    --sidebar-foreground: #e6e8ee;
-    --sidebar-primary: #00e5ff;
-    --sidebar-primary-foreground: #0b0b16;
-    --sidebar-accent: #1e1e2e;
-    --sidebar-accent-foreground: #e6e8ee;
-    --sidebar-border: rgba(255, 255, 255, 0.12);
-    --sidebar-ring: #00e5ff;
+    --sidebar: #f8f9fa;
+    --sidebar-foreground: #374151;
+    --sidebar-primary: #4D6BFE;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e8edf2;
+    --sidebar-accent-foreground: #374151;
+    --sidebar-border: #e5e7eb;
+    --sidebar-ring: #4D6BFE;
   }
   * {
     border-color: var(--border);
@@ -389,60 +258,37 @@ input[type="checkbox"] {
   }
 }
 
-/* ===== Custom Cyberpunk Theme (Tailwind v4 @theme) ===== */
+/* ===== DeepSeek-style Theme (Tailwind v4 @theme) ===== */
 @theme {
-  --color-cyber-50: #e0f7fa;
-  --color-cyber-100: #b2ebf2;
-  --color-cyber-200: #80deea;
-  --color-cyber-300: #4dd0e1;
-  --color-cyber-400: #22d3ee;
-  --color-cyber-500: #00e5ff;
-  --color-cyber-600: #00bcd4;
-  --color-cyber-700: #0097a7;
-  --color-cyber-800: #00838f;
-  --color-cyber-900: #006064;
+  --color-ds-50: #eef2ff;
+  --color-ds-100: #e0e7ff;
+  --color-ds-200: #c7d2fe;
+  --color-ds-300: #a5b4fc;
+  --color-ds-400: #818cf8;
+  --color-ds-500: #4D6BFE;
+  --color-ds-600: #4f46e5;
+  --color-ds-700: #4338ca;
+  --color-ds-800: #3730a3;
+  --color-ds-900: #312e81;
 
-  --color-neon-400: #a78bff;
-  --color-neon-500: #8b5cf6;
-  --color-neon-600: #7c3aed;
-  --color-neon-700: #6d28d9;
+  --color-surface-50: #fafafa;
+  --color-surface-100: #f5f5f5;
+  --color-surface-200: #e5e7eb;
+  --color-surface-300: #d1d5db;
+  --color-surface-400: #9ca3af;
+  --color-surface-500: #6b7280;
+  --color-surface-600: #4b5563;
+  --color-surface-700: #374151;
+  --color-surface-800: #1f2937;
+  --color-surface-900: #111827;
 
-  --color-surface-900: #0b0b16;
-  --color-surface-800: #11111c;
-  --color-surface-700: #181825;
-  --color-surface-600: #1f1f2e;
-  --color-surface-500: #262638;
-  --color-surface-400: #2e2e42;
-  --color-surface-300: #383850;
+  --color-accent-green: #10b981;
+  --color-accent-pink: #ef4444;
+  --color-accent-amber: #f59e0b;
 
-  --color-accent-green: #6ee7b7;
-  --color-accent-pink: #ff4d6d;
-  --color-accent-amber: #fbbf24;
-
-  --background-image-cyber-grid: linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
-  --background-image-cyber-gradient: linear-gradient(135deg, #0b0b16 0%, #11111c 30%, #181825 60%, #0b0b16 100%);
-  --background-image-glass-gradient: linear-gradient(135deg, rgba(31, 31, 46, 0.9), rgba(24, 24, 37, 0.7));
-  --background-image-neon-gradient: linear-gradient(135deg, #00e5ff 0%, #7c4dff 50%, #ff4081 100%);
-  --background-image-card-gradient: linear-gradient(135deg, rgba(26, 26, 46, 0.9), rgba(30, 30, 54, 0.7));
-
-  --background-size-grid-sm: 30px 30px;
-  --background-size-grid-md: 50px 50px;
-
-  --shadow-glow-cyan: 0 0 15px rgba(0, 229, 255, 0.3), 0 0 30px rgba(0, 229, 255, 0.1);
-  --shadow-glow-purple: 0 0 15px rgba(124, 77, 255, 0.3), 0 0 30px rgba(124, 77, 255, 0.1);
-  --shadow-glow-neon: 0 0 20px rgba(0, 229, 255, 0.2), 0 0 40px rgba(124, 77, 255, 0.15);
-  --shadow-glow-strong: 0 0 25px rgba(0, 229, 255, 0.4), 0 0 50px rgba(0, 229, 255, 0.2), 0 0 75px rgba(124, 77, 255, 0.1);
-  --shadow-inner-glow: inset 0 0 20px rgba(0, 229, 255, 0.05);
-
-  --animate-fade-in: fadeIn 0.3s ease-out;
-  --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-fade-in: fadeIn 0.2s ease-out;
+  --animate-slide-up: slideUp 0.2s ease-out;
   --animate-bounce-dot: bounceDot 1.4s infinite ease-in-out both;
-  --animate-glow-pulse: glowPulse 3s ease-in-out infinite;
-  --animate-scan-line: scanLine 8s linear infinite;
-  --animate-border-rotate: borderRotate 4s linear infinite;
-  --animate-float: float 6s ease-in-out infinite;
-  --animate-shimmer: shimmer 2s ease-in-out infinite;
-  --animate-flicker-soft: flickerSoft 5s ease-in-out infinite;
 }
 
 @keyframes fadeIn {
@@ -450,36 +296,10 @@ input[type="checkbox"] {
   100% { opacity: 1; }
 }
 @keyframes slideUp {
-  0% { transform: translateY(10px); opacity: 0; }
+  0% { transform: translateY(6px); opacity: 0; }
   100% { transform: translateY(0); opacity: 1; }
 }
 @keyframes bounceDot {
   0%, 80%, 100% { transform: scale(0); }
   40% { transform: scale(1); }
-}
-@keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 10px rgba(0, 229, 255, 0.2); }
-  50% { box-shadow: 0 0 25px rgba(0, 229, 255, 0.5), 0 0 50px rgba(0, 229, 255, 0.2); }
-}
-@keyframes scanLine {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
-}
-@keyframes borderRotate {
-  0% { --border-angle: 0deg; }
-  100% { --border-angle: 360deg; }
-}
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-@keyframes flickerSoft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
-  52% { opacity: 0.9; }
-  54% { opacity: 0.85; }
 }

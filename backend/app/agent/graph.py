@@ -93,6 +93,7 @@ async def run_agent(
         Dict events with type 'token', 'tool_start', 'tool_end', 'done'.
     """
     enabled_tools = agent_config.get("enabled_tools", [])
+    print(f"[RAG-DEBUG] run_agent: use_rag={use_rag}, enabled_tools={enabled_tools}, rag in tools={'rag' in enabled_tools}")
 
     # Step 1: RAG retrieval (if enabled) — returns context only, no messages
     rag_context = []
@@ -107,6 +108,7 @@ async def run_agent(
         )
         rag_result = await rag_node(state_for_rag, db)
         rag_context = rag_result.get("retrieved_context", [])
+        print(f"[RAG-DEBUG] rag_node returned {len(rag_context)} context items")
         # NOTE: Do NOT add rag_result["messages"] — agent_node merges context into system prompt
 
     # Yield RAG context info
@@ -143,10 +145,22 @@ async def run_agent(
             # Tool call events
             if hasattr(chunk, "tool_calls") and chunk.tool_calls:
                 for tc in chunk.tool_calls:
+                    tool_name = tc.get("name", "unknown")
+                    tool_args = tc.get("args", {})
+                    # Emit agent_switch event for delegate_to_agent calls
+                    if tool_name == "delegate_to_agent":
+                        target_id = tool_args.get("agent_id", "")
+                        delegate_task = tool_args.get("task", "")
+                        yield {
+                            "type": "agent_switch",
+                            "from_agent": "current",
+                            "to_agent": target_id,
+                            "task": delegate_task[:100],
+                        }
                     yield {
                         "type": "tool_start",
-                        "name": tc.get("name", "unknown"),
-                        "args": tc.get("args", {}),
+                        "name": tool_name,
+                        "args": tool_args,
                     }
             if isinstance(chunk, type(None)):
                 continue

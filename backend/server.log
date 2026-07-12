@@ -515,3 +515,607 @@ WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORD
 2026-07-11 22:21:03,448 INFO sqlalchemy.engine.Engine [cached since 13.96s ago] ('31563f97-f11d-459e-9c32-4cd28c4d598e', 'user', 1)
 [Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
 2026-07-11 22:21:03,869 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-07-11 22:25:26,449 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 22:25:26,450 INFO sqlalchemy.engine.Engine INSERT INTO conversations (id, title, agent_id, metadata, created_at, updated_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE, $6::TIMESTAMP WITH TIME ZONE)
+2026-07-11 22:25:26,450 INFO sqlalchemy.engine.Engine [cached since 279.9s ago] ('39155bae-1d54-414b-a749-df655f115131', 'New Conversation', 'rag-assistant', '{}', datetime.datetime(2026, 7, 11, 14, 25, 26, 450159, tzinfo=datetime.timezone.utc), datetime.datetime(2026, 7, 11, 14, 25, 26, 450162, tzinfo=datetime.timezone.utc))
+2026-07-11 22:25:26,454 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs 
+WHERE agent_configs.id = $1::VARCHAR
+2026-07-11 22:25:26,454 INFO sqlalchemy.engine.Engine [cached since 387.7s ago] ('rag-assistant',)
+2026-07-11 22:25:26,456 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 22:25:26,456 INFO sqlalchemy.engine.Engine [cached since 279.9s ago] ('39155bae-1d54-414b-a749-df655f115131', 'user', '简历内容是？', '{}', datetime.datetime(2026, 7, 11, 14, 25, 26, 456372, tzinfo=datetime.timezone.utc))
+2026-07-11 22:25:26,458 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-11 22:25:26,459 INFO sqlalchemy.engine.Engine [cached since 279.9s ago] ('39155bae-1d54-414b-a749-df655f115131',)
+2026-07-11 22:25:26,460 INFO sqlalchemy.engine.Engine COMMIT
+[Mem0] Search error: Top-level entity parameters frozenset({'user_id'}) are not supported in search(). Use filters={'user_id': '...'} instead.
+INFO:     127.0.0.1:53633 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-07-11 22:25:26,949 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 22:25:26,950 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 22:25:26,950 INFO sqlalchemy.engine.Engine [cached since 279.9s ago] (0, 50, 0)
+INFO:     127.0.0.1:53647 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 22:25:26,954 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 22:25:27,187 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 22:25:27,187 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 22:25:27,187 INFO sqlalchemy.engine.Engine [cached since 280.6s ago] ('39155bae-1d54-414b-a749-df655f115131', 'assistant', '该问题在知识库中未找到相关内容。', '{}', datetime.datetime(2026, 7, 11, 14, 25, 27, 187262, tzinfo=datetime.timezone.utc))
+2026-07-11 22:25:27,191 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-11 22:25:27,191 INFO sqlalchemy.engine.Engine [cached since 277.7s ago] ('39155bae-1d54-414b-a749-df655f115131',)
+2026-07-11 22:25:27,194 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id 
+ LIMIT $3::INTEGER
+2026-07-11 22:25:27,194 INFO sqlalchemy.engine.Engine [cached since 277.7s ago] ('39155bae-1d54-414b-a749-df655f115131', 'user', 1)
+2026-07-11 22:25:27,197 INFO sqlalchemy.engine.Engine UPDATE conversations SET title=$1::VARCHAR, updated_at=$2::TIMESTAMP WITH TIME ZONE WHERE conversations.id = $3::VARCHAR
+2026-07-11 22:25:27,197 INFO sqlalchemy.engine.Engine [cached since 277.7s ago] ('简历内容是？', datetime.datetime(2026, 7, 11, 14, 25, 27, 197046, tzinfo=datetime.timezone.utc), '39155bae-1d54-414b-a749-df655f115131')
+2026-07-11 22:25:27,199 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 22:25:27,210 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 22:25:27,210 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id DESC 
+ LIMIT $3::INTEGER
+2026-07-11 22:25:27,210 INFO sqlalchemy.engine.Engine [cached since 277.7s ago] ('39155bae-1d54-414b-a749-df655f115131', 'user', 1)
+[Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
+2026-07-11 22:25:27,539 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:60348 - "POST /api/v1/chat HTTP/1.1" 400 Bad Request
+2026-07-11 23:47:58,564 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:47:58,564 INFO sqlalchemy.engine.Engine INSERT INTO conversations (id, title, agent_id, metadata, created_at, updated_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE, $6::TIMESTAMP WITH TIME ZONE)
+2026-07-11 23:47:58,564 INFO sqlalchemy.engine.Engine [cached since 5232s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'New Conversation', 'rag-assistant', '{}', datetime.datetime(2026, 7, 11, 15, 47, 58, 564527, tzinfo=datetime.timezone.utc), datetime.datetime(2026, 7, 11, 15, 47, 58, 564530, tzinfo=datetime.timezone.utc))
+2026-07-11 23:47:58,569 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs 
+WHERE agent_configs.id = $1::VARCHAR
+2026-07-11 23:47:58,570 INFO sqlalchemy.engine.Engine [cached since 5340s ago] ('rag-assistant',)
+2026-07-11 23:47:58,571 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 23:47:58,571 INFO sqlalchemy.engine.Engine [cached since 5232s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'user', 'test', '{}', datetime.datetime(2026, 7, 11, 15, 47, 58, 571685, tzinfo=datetime.timezone.utc))
+2026-07-11 23:47:58,575 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-11 23:47:58,575 INFO sqlalchemy.engine.Engine [cached since 5232s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-11 23:47:58,578 INFO sqlalchemy.engine.Engine COMMIT
+[Mem0] Search error: Top-level entity parameters frozenset({'user_id'}) are not supported in search(). Use filters={'user_id': '...'} instead.
+INFO:     127.0.0.1:60363 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-07-11 23:47:59,103 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:47:59,106 INFO sqlalchemy.engine.Engine SELECT document_chunks.id, document_chunks.document_id, documents.filename, document_chunks.content, $1::INTEGER - (document_chunks.embedding <=> $2) AS similarity 
+FROM document_chunks JOIN documents ON document_chunks.document_id = documents.id ORDER BY document_chunks.embedding <=> $3 
+ LIMIT $4::INTEGER
+2026-07-11 23:47:59,106 INFO sqlalchemy.engine.Engine [generated in 0.00152s] (1, '[-0.03316918760538101,0.04104388505220413,-0.05703191086649895,-0.017260704189538956,-0.0602136068046093,-0.029828405007719994,-0.014178435318171978, ... (21428 characters truncated) ... ,0.015123001299798489,-0.015510770492255688,0.004958972334861755,0.0016766049666330218,-0.0164056234061718,-0.010638797655701637,0.00277404161170125]', '[-0.03316918760538101,0.04104388505220413,-0.05703191086649895,-0.017260704189538956,-0.0602136068046093,-0.029828405007719994,-0.014178435318171978, ... (21428 characters truncated) ... ,0.015123001299798489,-0.015510770492255688,0.004958972334861755,0.0016766049666330218,-0.0164056234061718,-0.010638797655701637,0.00277404161170125]', 15)
+2026-07-11 23:47:59,173 INFO sqlalchemy.engine.Engine 
+        SELECT
+            dc.id AS chunk_id,
+            dc.document_id,
+            d.filename,
+            dc.content,
+            ts_rank(dc.search_vector, plainto_tsquery('simple', $1)) AS score
+        FROM document_chunks dc
+        JOIN documents d ON dc.document_id = d.id
+        WHERE dc.search_vector @@ plainto_tsquery('simple', $1)
+        
+        ORDER BY score DESC
+        LIMIT $2
+    
+2026-07-11 23:47:59,173 INFO sqlalchemy.engine.Engine [generated in 0.00017s] ('test', 15)
+2026-07-11 23:48:00,230 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-07-11 23:48:00,237 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:48:00,238 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 23:48:00,238 INFO sqlalchemy.engine.Engine [cached since 5234s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'assistant', '你好！这是一个测试消息。如果你有任何关于甘俊培简历内容的问题（例如技术栈、项目经验、教育背景、证书资质等），欢迎随时提问，我将基于知识库中的文档准确为你解答。', '{"sources": [{"chunk_id": "7d29315f-69e6-45b5-897b-e89c19f2fa60", "document_id": "70b5078c-354a-4bbd-a9c9-c8deb1303c8c", "filename": "\\u7518\\u4fca\ ... (10653 characters truncated) ... d2\\u4ef6\\uff0c\\u9002\\u914d\\u79fb\\u52a8\\u7aef\\u4e0d\\u540c\\u5c3a\\u5bf8\\u7684\\u79fb\\u52a8\\u7aef\\u8bbe\\u5907\\u3002", "score": 0.4105}]}', datetime.datetime(2026, 7, 11, 15, 48, 0, 238496, tzinfo=datetime.timezone.utc))
+2026-07-11 23:48:00,244 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-11 23:48:00,244 INFO sqlalchemy.engine.Engine [cached since 5231s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-11 23:48:00,246 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id 
+ LIMIT $3::INTEGER
+2026-07-11 23:48:00,246 INFO sqlalchemy.engine.Engine [cached since 5231s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'user', 1)
+2026-07-11 23:48:00,249 INFO sqlalchemy.engine.Engine UPDATE conversations SET title=$1::VARCHAR, updated_at=$2::TIMESTAMP WITH TIME ZONE WHERE conversations.id = $3::VARCHAR
+2026-07-11 23:48:00,249 INFO sqlalchemy.engine.Engine [cached since 5231s ago] ('test', datetime.datetime(2026, 7, 11, 15, 48, 0, 248984, tzinfo=datetime.timezone.utc), '8115bf58-5431-40b5-81e4-2777578600ef')
+2026-07-11 23:48:00,250 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:48:00,258 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:48:00,259 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id DESC 
+ LIMIT $3::INTEGER
+2026-07-11 23:48:00,259 INFO sqlalchemy.engine.Engine [cached since 5231s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'user', 1)
+[Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
+2026-07-11 23:48:00,470 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-07-11 23:50:05,800 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:05,800 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-11 23:50:05,800 INFO sqlalchemy.engine.Engine [cached since 5356s ago] ('31563f97-f11d-459e-9c32-4cd28c4d598e',)
+2026-07-11 23:50:05,803 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-11 23:50:05,803 INFO sqlalchemy.engine.Engine [cached since 5359s ago] ('31563f97-f11d-459e-9c32-4cd28c4d598e',)
+INFO:     127.0.0.1:60503 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-11 23:50:05,805 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:06,356 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:06,356 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-11 23:50:06,356 INFO sqlalchemy.engine.Engine [cached since 5357s ago] ('39155bae-1d54-414b-a749-df655f115131',)
+2026-07-11 23:50:06,360 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-11 23:50:06,360 INFO sqlalchemy.engine.Engine [cached since 5360s ago] ('39155bae-1d54-414b-a749-df655f115131',)
+INFO:     127.0.0.1:60507 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-11 23:50:06,362 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:17,276 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:17,277 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-11 23:50:17,277 INFO sqlalchemy.engine.Engine [cached since 5368s ago] ('39155bae-1d54-414b-a749-df655f115131',)
+2026-07-11 23:50:17,279 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs 
+WHERE agent_configs.id = $1::VARCHAR
+2026-07-11 23:50:17,279 INFO sqlalchemy.engine.Engine [cached since 5479s ago] ('rag-assistant',)
+2026-07-11 23:50:17,281 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 23:50:17,281 INFO sqlalchemy.engine.Engine [cached since 5371s ago] ('39155bae-1d54-414b-a749-df655f115131', 'user', '简历内容是？', '{}', datetime.datetime(2026, 7, 11, 15, 50, 17, 281129, tzinfo=datetime.timezone.utc))
+2026-07-11 23:50:17,283 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-11 23:50:17,283 INFO sqlalchemy.engine.Engine [cached since 5371s ago] ('39155bae-1d54-414b-a749-df655f115131',)
+2026-07-11 23:50:17,285 INFO sqlalchemy.engine.Engine COMMIT
+[Mem0] Search error: Top-level entity parameters frozenset({'user_id'}) are not supported in search(). Use filters={'user_id': '...'} instead.
+INFO:     127.0.0.1:60521 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-07-11 23:50:17,779 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:17,779 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 23:50:17,779 INFO sqlalchemy.engine.Engine [cached since 5371s ago] (0, 50, 0)
+INFO:     127.0.0.1:60525 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 23:50:17,782 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:17,852 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:17,853 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 23:50:17,853 INFO sqlalchemy.engine.Engine [cached since 5371s ago] ('39155bae-1d54-414b-a749-df655f115131', 'assistant', '该问题在知识库中未找到相关内容。', '{}', datetime.datetime(2026, 7, 11, 15, 50, 17, 853065, tzinfo=datetime.timezone.utc))
+2026-07-11 23:50:17,856 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-11 23:50:17,856 INFO sqlalchemy.engine.Engine [cached since 5368s ago] ('39155bae-1d54-414b-a749-df655f115131',)
+2026-07-11 23:50:17,858 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:17,863 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:17,863 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id DESC 
+ LIMIT $3::INTEGER
+2026-07-11 23:50:17,864 INFO sqlalchemy.engine.Engine [cached since 5368s ago] ('39155bae-1d54-414b-a749-df655f115131', 'user', 1)
+[Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
+2026-07-11 23:50:18,207 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-07-11 23:50:26,071 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:26,071 INFO sqlalchemy.engine.Engine INSERT INTO conversations (id, title, agent_id, metadata, created_at, updated_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE, $6::TIMESTAMP WITH TIME ZONE)
+2026-07-11 23:50:26,071 INFO sqlalchemy.engine.Engine [cached since 5380s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'New Conversation', 'rag-assistant', '{}', datetime.datetime(2026, 7, 11, 15, 50, 26, 71393, tzinfo=datetime.timezone.utc), datetime.datetime(2026, 7, 11, 15, 50, 26, 71396, tzinfo=datetime.timezone.utc))
+2026-07-11 23:50:26,074 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs 
+WHERE agent_configs.id = $1::VARCHAR
+2026-07-11 23:50:26,074 INFO sqlalchemy.engine.Engine [cached since 5487s ago] ('rag-assistant',)
+2026-07-11 23:50:26,076 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 23:50:26,076 INFO sqlalchemy.engine.Engine [cached since 5380s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'user', '简历内容是？', '{}', datetime.datetime(2026, 7, 11, 15, 50, 26, 76139, tzinfo=datetime.timezone.utc))
+2026-07-11 23:50:26,078 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-11 23:50:26,078 INFO sqlalchemy.engine.Engine [cached since 5380s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-11 23:50:26,079 INFO sqlalchemy.engine.Engine COMMIT
+[Mem0] Search error: Top-level entity parameters frozenset({'user_id'}) are not supported in search(). Use filters={'user_id': '...'} instead.
+INFO:     127.0.0.1:60537 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-07-11 23:50:26,575 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:26,576 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 23:50:26,576 INFO sqlalchemy.engine.Engine [cached since 5380s ago] (0, 50, 0)
+INFO:     127.0.0.1:60541 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-11 23:50:26,580 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:26,664 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:26,664 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-11 23:50:26,664 INFO sqlalchemy.engine.Engine [cached since 5380s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'assistant', '该问题在知识库中未找到相关内容。', '{}', datetime.datetime(2026, 7, 11, 15, 50, 26, 664621, tzinfo=datetime.timezone.utc))
+2026-07-11 23:50:26,667 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-11 23:50:26,667 INFO sqlalchemy.engine.Engine [cached since 5377s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-11 23:50:26,668 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id 
+ LIMIT $3::INTEGER
+2026-07-11 23:50:26,668 INFO sqlalchemy.engine.Engine [cached since 5377s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'user', 1)
+2026-07-11 23:50:26,670 INFO sqlalchemy.engine.Engine UPDATE conversations SET title=$1::VARCHAR, updated_at=$2::TIMESTAMP WITH TIME ZONE WHERE conversations.id = $3::VARCHAR
+2026-07-11 23:50:26,670 INFO sqlalchemy.engine.Engine [cached since 5377s ago] ('简历内容是？', datetime.datetime(2026, 7, 11, 15, 50, 26, 670237, tzinfo=datetime.timezone.utc), '5d11163c-cf89-4fa4-ab8d-d8a53642d331')
+2026-07-11 23:50:26,671 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:26,677 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:26,678 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id DESC 
+ LIMIT $3::INTEGER
+2026-07-11 23:50:26,678 INFO sqlalchemy.engine.Engine [cached since 5377s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'user', 1)
+[Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
+2026-07-11 23:50:27,023 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:60564 - "POST /api/v1/admin/llm/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60570 - "POST /api/v1/admin/llm/list HTTP/1.1" 200 OK
+2026-07-11 23:50:29,113 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:29,114 INFO sqlalchemy.engine.Engine SELECT count(conversations.id) AS count_1 
+FROM conversations
+2026-07-11 23:50:29,114 INFO sqlalchemy.engine.Engine [cached since 5424s ago] ()
+2026-07-11 23:50:29,115 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:29,115 INFO sqlalchemy.engine.Engine SELECT documents.id, documents.filename, documents.file_type, documents.file_size, documents.content_hash, documents.chunk_count, documents.status, documents.source, documents.metadata, documents.created_at 
+FROM documents 
+WHERE documents.source = $1::VARCHAR ORDER BY documents.created_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 23:50:29,115 INFO sqlalchemy.engine.Engine [cached since 5485s ago] ('admin', 50, 0)
+2026-07-11 23:50:29,116 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:29,117 INFO sqlalchemy.engine.Engine SELECT count(conversations.id) AS count_1 
+FROM conversations
+2026-07-11 23:50:29,117 INFO sqlalchemy.engine.Engine [cached since 5424s ago] ()
+2026-07-11 23:50:29,117 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-11 23:50:29,117 INFO sqlalchemy.engine.Engine SELECT documents.id, documents.filename, documents.file_type, documents.file_size, documents.content_hash, documents.chunk_count, documents.status, documents.source, documents.metadata, documents.created_at 
+FROM documents 
+WHERE documents.source = $1::VARCHAR ORDER BY documents.created_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-11 23:50:29,118 INFO sqlalchemy.engine.Engine [cached since 5485s ago] ('admin', 50, 0)
+2026-07-11 23:50:29,119 INFO sqlalchemy.engine.Engine SELECT count(conversations.id) AS count_1 
+FROM conversations 
+WHERE conversations.created_at >= $1::TIMESTAMP WITH TIME ZONE
+2026-07-11 23:50:29,119 INFO sqlalchemy.engine.Engine [cached since 5424s ago] (datetime.datetime(2026, 7, 11, 0, 0, tzinfo=datetime.timezone.utc),)
+INFO:     127.0.0.1:60565 - "POST /api/v1/admin/rag/documents HTTP/1.1" 200 OK
+2026-07-11 23:50:29,120 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:29,121 INFO sqlalchemy.engine.Engine SELECT count(conversations.id) AS count_1 
+FROM conversations 
+WHERE conversations.created_at >= $1::TIMESTAMP WITH TIME ZONE
+2026-07-11 23:50:29,121 INFO sqlalchemy.engine.Engine [cached since 5424s ago] (datetime.datetime(2026, 7, 11, 0, 0, tzinfo=datetime.timezone.utc),)
+INFO:     127.0.0.1:60571 - "POST /api/v1/admin/rag/documents HTTP/1.1" 200 OK
+2026-07-11 23:50:29,123 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-11 23:50:29,124 INFO sqlalchemy.engine.Engine SELECT count(messages.id) AS count_1 
+FROM messages
+2026-07-11 23:50:29,124 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,126 INFO sqlalchemy.engine.Engine SELECT count(messages.id) AS count_1 
+FROM messages
+2026-07-11 23:50:29,126 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,126 INFO sqlalchemy.engine.Engine SELECT count(messages.id) AS count_1 
+FROM messages 
+WHERE messages.created_at >= $1::TIMESTAMP WITH TIME ZONE
+2026-07-11 23:50:29,126 INFO sqlalchemy.engine.Engine [cached since 5423s ago] (datetime.datetime(2026, 7, 11, 0, 0, tzinfo=datetime.timezone.utc),)
+2026-07-11 23:50:29,128 INFO sqlalchemy.engine.Engine SELECT count(messages.id) AS count_1 
+FROM messages 
+WHERE messages.created_at >= $1::TIMESTAMP WITH TIME ZONE
+2026-07-11 23:50:29,128 INFO sqlalchemy.engine.Engine [cached since 5423s ago] (datetime.datetime(2026, 7, 11, 0, 0, tzinfo=datetime.timezone.utc),)
+2026-07-11 23:50:29,128 INFO sqlalchemy.engine.Engine SELECT count(documents.id) AS count_1 
+FROM documents
+2026-07-11 23:50:29,128 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,130 INFO sqlalchemy.engine.Engine SELECT count(documents.id) AS count_1 
+FROM documents
+2026-07-11 23:50:29,130 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,131 INFO sqlalchemy.engine.Engine SELECT count(document_chunks.id) AS count_1 
+FROM document_chunks
+2026-07-11 23:50:29,131 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,132 INFO sqlalchemy.engine.Engine SELECT count(document_chunks.id) AS count_1 
+FROM document_chunks
+2026-07-11 23:50:29,132 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,134 INFO sqlalchemy.engine.Engine SELECT sum(documents.file_size) AS sum_1 
+FROM documents
+2026-07-11 23:50:29,134 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,134 INFO sqlalchemy.engine.Engine SELECT sum(documents.file_size) AS sum_1 
+FROM documents
+2026-07-11 23:50:29,134 INFO sqlalchemy.engine.Engine [cached since 5423s ago] ()
+2026-07-11 23:50:29,136 INFO sqlalchemy.engine.Engine SELECT count(agent_configs.id) AS count_1 
+FROM agent_configs
+2026-07-11 23:50:29,137 INFO sqlalchemy.engine.Engine [cached since 5490s ago] ()
+2026-07-11 23:50:29,138 INFO sqlalchemy.engine.Engine SELECT count(agent_configs.id) AS count_1 
+FROM agent_configs
+2026-07-11 23:50:29,138 INFO sqlalchemy.engine.Engine [cached since 5490s ago] ()
+INFO:     127.0.0.1:60563 - "POST /api/v1/admin/dashboard HTTP/1.1" 200 OK
+2026-07-11 23:50:29,140 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:60569 - "POST /api/v1/admin/dashboard HTTP/1.1" 200 OK
+2026-07-11 23:50:29,142 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:61283 - "POST /api/v1/chat HTTP/1.1" 400 Bad Request
+2026-07-12 00:08:16,458 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:16,458 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:16,458 INFO sqlalchemy.engine.Engine [cached since 6447s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:16,461 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:16,461 INFO sqlalchemy.engine.Engine [cached since 6450s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+INFO:     127.0.0.1:61803 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:16,464 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:16,808 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:16,809 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:16,809 INFO sqlalchemy.engine.Engine [cached since 6447s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:16,811 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:16,811 INFO sqlalchemy.engine.Engine [cached since 6450s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+INFO:     127.0.0.1:61807 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:16,815 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:17,239 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:17,240 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:17,240 INFO sqlalchemy.engine.Engine [cached since 6448s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:17,245 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:17,246 INFO sqlalchemy.engine.Engine [cached since 6451s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+INFO:     127.0.0.1:61810 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:17,253 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:17,745 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:17,745 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:17,745 INFO sqlalchemy.engine.Engine [cached since 6448s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:17,748 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:17,748 INFO sqlalchemy.engine.Engine [cached since 6451s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+INFO:     127.0.0.1:61813 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:17,752 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:27,498 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:27,498 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:27,498 INFO sqlalchemy.engine.Engine [cached since 6458s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:27,501 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:27,501 INFO sqlalchemy.engine.Engine [cached since 6461s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+INFO:     127.0.0.1:61830 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:27,503 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:27,805 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:27,805 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:27,805 INFO sqlalchemy.engine.Engine [cached since 6458s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:27,808 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:27,808 INFO sqlalchemy.engine.Engine [cached since 6461s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+INFO:     127.0.0.1:61833 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:27,811 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:28,235 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:28,236 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:28,236 INFO sqlalchemy.engine.Engine [cached since 6459s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:28,238 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:28,238 INFO sqlalchemy.engine.Engine [cached since 6462s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+INFO:     127.0.0.1:61837 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:28,240 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:61857 - "POST /api/v1/admin/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61867 - "POST /api/v1/admin/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61868 - "POST /api/v1/admin/models HTTP/1.1" 200 OK
+2026-07-12 00:08:30,394 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:30,395 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:30,395 INFO sqlalchemy.engine.Engine [cached since 6461s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:30,396 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:30,397 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-12 00:08:30,397 INFO sqlalchemy.engine.Engine [cached since 6463s ago] (0, 50, 0)
+2026-07-12 00:08:30,398 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:30,398 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-12 00:08:30,398 INFO sqlalchemy.engine.Engine [cached since 6566s ago] (50, 0)
+2026-07-12 00:08:30,401 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:30,401 INFO sqlalchemy.engine.Engine [cached since 6464s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:30,407 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:30,408 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-12 00:08:30,408 INFO sqlalchemy.engine.Engine [cached since 6463s ago] (0, 50, 0)
+INFO:     127.0.0.1:61876 - "POST /api/v1/admin/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61863 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61861 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:30,413 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:30,413 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:61864 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-12 00:08:30,416 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:30,418 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:30,419 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs ORDER BY agent_configs.created_at DESC 
+ LIMIT $1::INTEGER OFFSET $2::INTEGER
+2026-07-12 00:08:30,419 INFO sqlalchemy.engine.Engine [cached since 6566s ago] (50, 0)
+INFO:     127.0.0.1:61870 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-12 00:08:30,420 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:61874 - "POST /api/v1/agents/list HTTP/1.1" 200 OK
+2026-07-12 00:08:30,423 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:31,214 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:31,215 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:31,215 INFO sqlalchemy.engine.Engine [cached since 6462s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:31,217 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:31,217 INFO sqlalchemy.engine.Engine [cached since 6465s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+INFO:     127.0.0.1:61883 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:31,219 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:36,386 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:36,387 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:36,387 INFO sqlalchemy.engine.Engine [cached since 6467s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:36,390 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs 
+WHERE agent_configs.id = $1::VARCHAR
+2026-07-12 00:08:36,390 INFO sqlalchemy.engine.Engine [cached since 6578s ago] ('default',)
+2026-07-12 00:08:36,391 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-12 00:08:36,392 INFO sqlalchemy.engine.Engine [cached since 6470s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'user', '简历内容是？', '{}', datetime.datetime(2026, 7, 11, 16, 8, 36, 391941, tzinfo=datetime.timezone.utc))
+2026-07-12 00:08:36,394 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:36,394 INFO sqlalchemy.engine.Engine [cached since 6470s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:36,396 INFO sqlalchemy.engine.Engine COMMIT
+[Mem0] Search error: Top-level entity parameters frozenset({'user_id'}) are not supported in search(). Use filters={'user_id': '...'} instead.
+INFO:     127.0.0.1:61892 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-07-12 00:08:36,890 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:36,890 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-12 00:08:36,890 INFO sqlalchemy.engine.Engine [cached since 6470s ago] (0, 50, 0)
+INFO:     127.0.0.1:61896 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-12 00:08:36,893 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:37,051 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:37,051 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-12 00:08:37,051 INFO sqlalchemy.engine.Engine [cached since 6471s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'assistant', '该问题在知识库中未找到相关内容。', '{}', datetime.datetime(2026, 7, 11, 16, 8, 37, 51637, tzinfo=datetime.timezone.utc))
+2026-07-12 00:08:37,054 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:37,054 INFO sqlalchemy.engine.Engine [cached since 6468s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:08:37,055 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:37,062 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:37,062 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id DESC 
+ LIMIT $3::INTEGER
+2026-07-12 00:08:37,062 INFO sqlalchemy.engine.Engine [cached since 6468s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331', 'user', 1)
+[Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
+2026-07-12 00:08:37,264 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-07-12 00:08:38,417 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:38,417 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:38,417 INFO sqlalchemy.engine.Engine [cached since 6469s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:38,419 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:38,419 INFO sqlalchemy.engine.Engine [cached since 6472s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+INFO:     127.0.0.1:61901 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:38,421 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:38,864 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:38,864 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:38,865 INFO sqlalchemy.engine.Engine [cached since 6469s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:38,867 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:38,867 INFO sqlalchemy.engine.Engine [cached since 6472s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+INFO:     127.0.0.1:61904 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:08:38,869 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:40,667 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:40,667 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:40,667 INFO sqlalchemy.engine.Engine [cached since 6471s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:40,669 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs 
+WHERE agent_configs.id = $1::VARCHAR
+2026-07-12 00:08:40,669 INFO sqlalchemy.engine.Engine [cached since 6582s ago] ('default',)
+2026-07-12 00:08:40,671 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-12 00:08:40,671 INFO sqlalchemy.engine.Engine [cached since 6474s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'user', '简历内容是？', '{}', datetime.datetime(2026, 7, 11, 16, 8, 40, 671546, tzinfo=datetime.timezone.utc))
+2026-07-12 00:08:40,673 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:40,673 INFO sqlalchemy.engine.Engine [cached since 6474s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:40,675 INFO sqlalchemy.engine.Engine COMMIT
+[Mem0] Search error: Top-level entity parameters frozenset({'user_id'}) are not supported in search(). Use filters={'user_id': '...'} instead.
+INFO:     127.0.0.1:61910 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-07-12 00:08:41,173 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:41,174 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-12 00:08:41,174 INFO sqlalchemy.engine.Engine [cached since 6474s ago] (0, 50, 0)
+INFO:     127.0.0.1:61915 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-12 00:08:41,177 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:46,921 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:46,922 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-12 00:08:46,922 INFO sqlalchemy.engine.Engine [cached since 6480s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'assistant', '请稍等，我将从你上传的简历文档中提取并整理甘俊培的简历内容。\n\nURL 抓取失败: HTTP Error 404: Not Found抱歉，我无法通过 URL 访问简历文件（`https://example.com/resume-gan-junpei.pdf` 返回 404 错误），说明该链接 ... (213 characters truncated) ... ；  \n3. 若你已上传但未生效，请刷新页面后重试。\n\n收到有效简历内容后，我将立即为你结构化呈现（如：个人信息、教育背景、工作经历、技术栈、项目经验、证书等），并支持深度问答（例如：“他在哪个项目用了 Spring Cloud？”、“有哪些 AWS 相关认证？”等）。\n\n期待你的补充！', '{}', datetime.datetime(2026, 7, 11, 16, 8, 46, 922177, tzinfo=datetime.timezone.utc))
+2026-07-12 00:08:46,925 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:46,925 INFO sqlalchemy.engine.Engine [cached since 6477s ago] ('8115bf58-5431-40b5-81e4-2777578600ef',)
+2026-07-12 00:08:46,926 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:46,933 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:46,933 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id DESC 
+ LIMIT $3::INTEGER
+2026-07-12 00:08:46,933 INFO sqlalchemy.engine.Engine [cached since 6477s ago] ('8115bf58-5431-40b5-81e4-2777578600ef', 'user', 1)
+[Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
+2026-07-12 00:08:47,302 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-07-12 00:08:57,778 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:57,778 INFO sqlalchemy.engine.Engine INSERT INTO conversations (id, title, agent_id, metadata, created_at, updated_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE, $6::TIMESTAMP WITH TIME ZONE)
+2026-07-12 00:08:57,778 INFO sqlalchemy.engine.Engine [cached since 6491s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f', 'New Conversation', 'rag-assistant', '{}', datetime.datetime(2026, 7, 11, 16, 8, 57, 778789, tzinfo=datetime.timezone.utc), datetime.datetime(2026, 7, 11, 16, 8, 57, 778792, tzinfo=datetime.timezone.utc))
+2026-07-12 00:08:57,781 INFO sqlalchemy.engine.Engine SELECT agent_configs.id, agent_configs.name, agent_configs.description, agent_configs.system_prompt, agent_configs.temperature, agent_configs.max_tokens, agent_configs.enabled_tools, agent_configs.rag_top_k, agent_configs.rag_similarity_threshold, agent_configs.is_default, agent_configs.is_protected, agent_configs.created_at 
+FROM agent_configs 
+WHERE agent_configs.id = $1::VARCHAR
+2026-07-12 00:08:57,781 INFO sqlalchemy.engine.Engine [cached since 6599s ago] ('rag-assistant',)
+2026-07-12 00:08:57,783 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-12 00:08:57,783 INFO sqlalchemy.engine.Engine [cached since 6491s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f', 'user', '简历内容是？', '{}', datetime.datetime(2026, 7, 11, 16, 8, 57, 783400, tzinfo=datetime.timezone.utc))
+2026-07-12 00:08:57,785 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:08:57,785 INFO sqlalchemy.engine.Engine [cached since 6491s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f',)
+2026-07-12 00:08:57,787 INFO sqlalchemy.engine.Engine COMMIT
+[Mem0] Search error: Top-level entity parameters frozenset({'user_id'}) are not supported in search(). Use filters={'user_id': '...'} instead.
+INFO:     127.0.0.1:61939 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-07-12 00:08:58,279 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:58,280 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at, coalesce(anon_1.msg_count, $1::INTEGER) AS message_count 
+FROM conversations LEFT OUTER JOIN (SELECT messages.conversation_id AS conversation_id, count(messages.id) AS msg_count 
+FROM messages GROUP BY messages.conversation_id) AS anon_1 ON anon_1.conversation_id = conversations.id ORDER BY conversations.updated_at DESC 
+ LIMIT $2::INTEGER OFFSET $3::INTEGER
+2026-07-12 00:08:58,280 INFO sqlalchemy.engine.Engine [cached since 6491s ago] (0, 50, 0)
+INFO:     127.0.0.1:61943 - "POST /api/v1/conversations/list HTTP/1.1" 200 OK
+2026-07-12 00:08:58,283 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:58,380 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:58,380 INFO sqlalchemy.engine.Engine INSERT INTO messages (conversation_id, role, content, metadata, created_at) VALUES ($1::VARCHAR, $2::VARCHAR, $3::VARCHAR, $4::JSON, $5::TIMESTAMP WITH TIME ZONE) RETURNING messages.id
+2026-07-12 00:08:58,380 INFO sqlalchemy.engine.Engine [cached since 6492s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f', 'assistant', '该问题在知识库中未找到相关内容。', '{}', datetime.datetime(2026, 7, 11, 16, 8, 58, 380304, tzinfo=datetime.timezone.utc))
+2026-07-12 00:08:58,382 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:08:58,382 INFO sqlalchemy.engine.Engine [cached since 6489s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f',)
+2026-07-12 00:08:58,383 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id 
+ LIMIT $3::INTEGER
+2026-07-12 00:08:58,383 INFO sqlalchemy.engine.Engine [cached since 6489s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f', 'user', 1)
+2026-07-12 00:08:58,384 INFO sqlalchemy.engine.Engine UPDATE conversations SET title=$1::VARCHAR, updated_at=$2::TIMESTAMP WITH TIME ZONE WHERE conversations.id = $3::VARCHAR
+2026-07-12 00:08:58,385 INFO sqlalchemy.engine.Engine [cached since 6489s ago] ('简历内容是？', datetime.datetime(2026, 7, 11, 16, 8, 58, 384905, tzinfo=datetime.timezone.utc), '7cc69c1f-87eb-42b6-9bcd-6430a4ac280f')
+2026-07-12 00:08:58,386 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:08:58,391 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:08:58,391 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR AND messages.role = $2::VARCHAR ORDER BY messages.id DESC 
+ LIMIT $3::INTEGER
+2026-07-12 00:08:58,391 INFO sqlalchemy.engine.Engine [cached since 6489s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f', 'user', 1)
+[Mem0] Add error: shapes (0,1536) and (1024,) not aligned: 1536 (dim 1) != 1024 (dim 0)
+2026-07-12 00:08:58,725 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-07-12 00:09:01,298 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:09:01,299 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:09:01,299 INFO sqlalchemy.engine.Engine [cached since 6492s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+2026-07-12 00:09:01,301 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:09:01,301 INFO sqlalchemy.engine.Engine [cached since 6495s ago] ('5d11163c-cf89-4fa4-ab8d-d8a53642d331',)
+INFO:     127.0.0.1:61958 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:09:01,302 INFO sqlalchemy.engine.Engine COMMIT
+2026-07-12 00:09:01,883 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-12 00:09:01,883 INFO sqlalchemy.engine.Engine SELECT conversations.id, conversations.title, conversations.agent_id, conversations.metadata, conversations.created_at, conversations.updated_at 
+FROM conversations 
+WHERE conversations.id = $1::VARCHAR
+2026-07-12 00:09:01,883 INFO sqlalchemy.engine.Engine [cached since 6492s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f',)
+2026-07-12 00:09:01,885 INFO sqlalchemy.engine.Engine SELECT messages.id, messages.conversation_id, messages.role, messages.content, messages.metadata, messages.created_at 
+FROM messages 
+WHERE messages.conversation_id = $1::VARCHAR ORDER BY messages.id
+2026-07-12 00:09:01,885 INFO sqlalchemy.engine.Engine [cached since 6495s ago] ('7cc69c1f-87eb-42b6-9bcd-6430a4ac280f',)
+INFO:     127.0.0.1:61961 - "POST /api/v1/conversations/get HTTP/1.1" 200 OK
+2026-07-12 00:09:01,887 INFO sqlalchemy.engine.Engine COMMIT

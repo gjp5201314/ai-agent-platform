@@ -59,6 +59,7 @@ export interface AgentConfig {
   rag_top_k: number;
   rag_similarity_threshold: number;
   is_default?: boolean;
+  allow_delegation?: boolean;
 }
 
 export interface ToolInfo {
@@ -73,5 +74,6 @@ export type SSEEvent =
   | { type: "rag_context"; sources: Source[] }
   | { type: "token"; content: string }
   | { type: "tool_start"; name: string; args: Record<string, unknown> }
+  | { type: "agent_switch"; to_agent: string; task: string }
   | { type: "done"; sources: Source[] }
   | { type: "error"; content: string };

@@ -32,6 +32,10 @@ async def list_available_tools():
         "name": "rag",
         "description": "知识库检索：搜索上传的文档进行精准问答",
         "type": "rag",
+    }, {
+        "name": "delegate_to_agent",
+        "description": "Agent 委托：将子任务委托给其他专业 Agent 处理（如知识库助手）",
+        "type": "meta",
     }]
     for name, tool_obj in ALL_TOOLS.items():
         tools.append({
@@ -77,6 +81,7 @@ async def create_agent(
         enabled_tools=request.enabled_tools,
         rag_top_k=request.rag_top_k,
         rag_similarity_threshold=request.rag_similarity_threshold,
+        allow_delegation=request.allow_delegation,
     )
     db.add(agent)
     await db.commit()

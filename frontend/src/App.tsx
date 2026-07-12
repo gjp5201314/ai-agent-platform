@@ -25,6 +25,7 @@ export default function App() {
     messages,
     isStreaming,
     conversationId,
+    activeAgentId,
     sendMessage,
     stopStreaming,
     loadConversation,
@@ -182,6 +183,8 @@ export default function App() {
           messages={messages}
           isStreaming={isStreaming}
           activeAgent={activeAgent}
+          activeAgentId={activeAgentId}
+          agents={agents.map(a => ({ id: a.id, name: a.name }))}
           onSend={handleSend}
           onStop={stopStreaming}
           useRag={useRag}

@@ -75,20 +75,20 @@ export function DocumentUpload({ onClose }: Props) {
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="!max-w-2xl w-[90vw] h-[80vh] p-0 gap-0 flex flex-col bg-surface-900 border border-white/[0.08]">
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Database size={18} className="text-primary" />
+      <DialogContent className="!max-w-2xl w-[90vw] h-[80vh] p-0 gap-0 flex flex-col bg-white border border-gray-200">
+        <DialogHeader className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-gray-800">
+            <Database size={18} className="text-ds-500" />
             知识库管理
           </DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription className="text-xs text-gray-400">
             上传文档构建 RAG 知识库，让 AI 基于文档内容回答
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-5 px-6 py-2.5 border-b text-xs text-muted-foreground flex-shrink-0">
+        <div className="flex items-center gap-5 px-6 py-2.5 border-b border-gray-100 text-xs text-gray-400 flex-shrink-0">
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <span className="w-1.5 h-1.5 rounded-full bg-ds-500" />
             {stats.document_count} 文档
           </span>
           <span>{stats.chunk_count} 分块</span>
@@ -96,7 +96,7 @@ export function DocumentUpload({ onClose }: Props) {
         </div>
 
         {/* Upload area */}
-        <div className="px-6 py-4 border-b flex-shrink-0">
+        <div className="px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <input
             ref={fileInputRef}
             type="file"
@@ -108,23 +108,23 @@ export function DocumentUpload({ onClose }: Props) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="w-full border border-dashed rounded-xl py-8 flex flex-col items-center gap-3
-                       text-muted-foreground hover:text-primary hover:border-primary/30
-                       bg-muted/20 hover:bg-muted/40 transition-all disabled:opacity-50"
+            className="w-full border border-dashed border-gray-300 rounded-xl py-8 flex flex-col items-center gap-3
+                       text-gray-400 hover:text-ds-500 hover:border-ds-300
+                       bg-gray-50/50 hover:bg-ds-50/50 transition-all disabled:opacity-50"
           >
             {uploading ? (
               <>
-                <div className="w-7 h-7 border-2 border-primary/50 border-t-transparent rounded-full animate-spin" />
+                <div className="w-7 h-7 border-2 border-ds-400 border-t-transparent rounded-full animate-spin" />
                 <span className="text-sm">正在上传和处理...</span>
               </>
             ) : (
               <>
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Upload size={20} className="text-primary" />
+                <div className="w-10 h-10 rounded-lg bg-ds-50 flex items-center justify-center">
+                  <Upload size={20} className="text-ds-500" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium">点击上传文件</p>
-                  <p className="text-xs mt-1 opacity-60">支持 PDF, DOCX, TXT, MD</p>
+                  <p className="text-sm font-medium text-gray-600">点击上传文件</p>
+                  <p className="text-xs mt-1 text-gray-400">支持 PDF, DOCX, TXT, MD</p>
                 </div>
               </>
             )}
@@ -135,37 +135,37 @@ export function DocumentUpload({ onClose }: Props) {
         <ScrollArea className="flex-1">
           <div className="p-6">
             {documents.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="text-center py-12 text-gray-400">
                 <FileText size={32} className="mx-auto mb-3 opacity-15" />
                 <p className="text-sm">还没有上传任何文档</p>
-                <p className="text-xs mt-1 opacity-60">上传文档后即可开启 RAG 知识库问答</p>
+                <p className="text-xs mt-1">上传文档后即可开启 RAG 知识库问答</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {documents.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center gap-3 rounded-lg border bg-card/50 p-3
-                               hover:bg-card/80 transition-colors group"
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3
+                               hover:bg-gray-50 transition-colors group"
                   >
-                    <div className="w-10 h-10 rounded-md bg-muted border flex items-center justify-center flex-shrink-0">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    <div className="w-10 h-10 rounded-md bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">
                         {getFileIcon(doc.file_type)}
                       </span>
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{doc.filename}</p>
-                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
+                      <p className="font-medium text-sm text-gray-800 truncate">{doc.filename}</p>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-1">
                         <span>{formatSize(doc.file_size)}</span>
                         <span>{doc.chunk_count} 分块</span>
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
                             doc.status === "ready"
-                              ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
                               : doc.status === "processing"
-                              ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                              : "bg-destructive/10 text-destructive border border-destructive/20"
+                              ? "bg-amber-50 text-amber-600 border border-amber-200"
+                              : "bg-red-50 text-red-600 border border-red-200"
                           }`}
                         >
                           {doc.status === "ready" ? "就绪" : doc.status === "processing" ? "处理中" : "错误"}
@@ -176,8 +176,8 @@ export function DocumentUpload({ onClose }: Props) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 text-muted-foreground
-                                 hover:text-destructive"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 text-gray-400
+                                 hover:text-red-500"
                       onClick={() => handleDelete(doc.id)}
                     >
                       <Trash2 size={14} />

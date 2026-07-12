@@ -104,6 +104,7 @@ class AgentConfig(Base):
     rag_similarity_threshold: Mapped[float] = mapped_column(Float, default=0.5)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
+    allow_delegation: Mapped[bool] = mapped_column(Boolean, default=True, doc="Whether other agents can delegate tasks to this agent")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="agent")

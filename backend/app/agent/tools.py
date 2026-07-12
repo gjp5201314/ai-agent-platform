@@ -393,5 +393,71 @@ def get_tools(enabled_tool_names: list) -> list:
     """
     Return the list of tool callables for the given names.
     'rag' is handled separately by the graph (not a LangChain tool).
+    'delegate_to_agent' is a meta-tool loaded on demand.
     """
-    return [ALL_TOOLS[name] for name in enabled_tool_names if name in ALL_TOOLS]
+    tools = [ALL_TOOLS[name] for name in enabled_tool_names if name in ALL_TOOLS]
+    # Always include delegate_to_agent so agents can delegate to others
+    if "delegate_to_agent" in enabled_tool_names:
+        tools.append(delegate_to_agent)
+    return tools
+
+
+# ---- Agent Delegation (meta-tool: delegates task to another agent) ----
+
+@tool
+async def delegate_to_agent(agent_id: str, task: str) -> str:
+    """
+    Delegate a sub-task to another specialized agent.
+    Use this to hand off work that another agent is better suited for.
+
+    Args:
+        agent_id: The ID of the target agent (e.g. "rag-assistant" for knowledge base queries,
+                  "default" for general tasks). Use the exact agent ID.
+        task: A clear description of what you need the target agent to do.
+              Include all necessary context.
+
+    Returns:
+        The result from the target agent.
+    """
+    from app.database import async_session_factory
+    from app.models import AgentConfig
+    from app.agent.llm import get_llm
+    from app.agent.tools import get_tools as _get_tools
+    from sqlalchemy import select
+    from langchain_core.messages import SystemMessage, HumanMessage
+
+    try:
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(AgentConfig).where(AgentConfig.id == agent_id)
+            )
+            agent = result.scalar_one_or_none()
+
+            if not agent:
+                return f"委托失败: 找不到ID为 '{agent_id}' 的Agent。可用的Agent ID: default(通用助手), rag-assistant(知识库助手)"
+
+            if not agent.allow_delegation:
+                return f"委托失败: Agent '{agent.name}' 未开启委托功能。"
+
+            messages = [
+                SystemMessage(content=agent.system_prompt),
+                HumanMessage(content=task),
+            ]
+
+            llm = get_llm(
+                temperature=agent.temperature,
+                max_tokens=agent.max_tokens,
+                has_images=False,
+            )
+
+            # Bind the target agent's own tools
+            target_tools = [t for t in agent.enabled_tools if t != "delegate_to_agent"]
+            tool_objs = _get_tools(target_tools)
+            if tool_objs:
+                llm = llm.bind_tools(tool_objs)
+
+            response = await llm.ainvoke(messages)
+            return f"[Agent: {agent.name}] {response.content}"
+
+    except Exception as e:
+        return f"委托执行失败: {str(e)}"

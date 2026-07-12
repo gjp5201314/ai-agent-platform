@@ -190,6 +190,7 @@ class AgentConfigCreate(BaseModel):
     enabled_tools: List[str] = Field(default_factory=list, max_length=50)
     rag_top_k: int = Field(4, ge=1, le=20)
     rag_similarity_threshold: float = Field(0.5, ge=0.0, le=1.0)
+    allow_delegation: bool = Field(True, description="Allow other agents to delegate tasks to this agent")
 
 
 class AgentConfigUpdate(BaseModel):
@@ -203,6 +204,7 @@ class AgentConfigUpdate(BaseModel):
     rag_top_k: Optional[int] = Field(None, ge=1, le=20)
     rag_similarity_threshold: Optional[float] = Field(None, ge=0.0, le=1.0)
     is_default: Optional[bool] = None
+    allow_delegation: Optional[bool] = None
 
 
 class AgentConfigOut(BaseModel):
@@ -217,6 +219,7 @@ class AgentConfigOut(BaseModel):
     rag_similarity_threshold: float
     is_default: bool
     is_protected: bool = False
+    allow_delegation: bool = True
 
     class Config:
         from_attributes = True

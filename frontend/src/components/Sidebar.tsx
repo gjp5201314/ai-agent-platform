@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Plus, MessageSquare, Trash2, FileText, Settings as SettingsIcon, X, Search, Zap, Cpu, ChevronDown, SlidersHorizontal
+  Plus, MessageSquare, Trash2, FileText, Settings as SettingsIcon, X, Search, Bot, Cpu, ChevronDown, SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,24 +44,21 @@ export function Sidebar({
   );
 
   return (
-    <div className="flex flex-col h-full w-72 glass-panel-strong border-r border-border particle-dots">
+    <div className="flex flex-col h-full w-64 bg-[#f8f9fa] border-r border-gray-200">
       {/* Header */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2.5">
-            <div className="relative">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyber-400 to-neon-500 flex items-center justify-center shadow-glow-cyan">
-                <Zap size={16} className="text-white" />
-              </div>
-              <div className="absolute inset-0 rounded-lg bg-cyber-400/20 animate-glow-pulse" />
+            <div className="w-9 h-9 rounded-lg bg-ds-500 flex items-center justify-center">
+              <Bot size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white tracking-wide">AI AGENT</h1>
-              <p className="text-[10px] text-cyber-400/60 tracking-widest uppercase">Platform</p>
+              <h1 className="text-sm font-semibold text-gray-800">AI Agent</h1>
+              <p className="text-[10px] text-gray-400">Platform</p>
             </div>
           </div>
           {onClose && (
-            <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8 text-gray-500" onClick={onClose}>
               <X size={18} />
             </Button>
           )}
@@ -71,17 +68,17 @@ export function Sidebar({
         <div className="relative">
           <button
             onClick={() => setAgentMenuOpen(!agentMenuOpen)}
-            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2.5
-                       bg-surface-700/50 border border-border
-                       hover:border-primary/20 transition-all text-left group"
+            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2
+                       bg-white border border-gray-200
+                       hover:border-gray-300 transition-all text-left"
           >
-            <Cpu size={12} className="text-primary" />
-            <span className="flex-1 text-xs text-foreground/70 truncate">
+            <Cpu size={12} className="text-ds-500" />
+            <span className="flex-1 text-xs text-gray-600 truncate">
               {activeAgent?.name || "选择 Agent"}
             </span>
             <ChevronDown
               size={14}
-              className={`text-muted-foreground transition-transform duration-200 ${
+              className={`text-gray-400 transition-transform duration-200 ${
                 agentMenuOpen ? "rotate-180" : ""
               }`}
             />
@@ -91,11 +88,11 @@ export function Sidebar({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setAgentMenuOpen(false)} />
               <div className="absolute left-0 right-0 top-full mt-1 z-20
-                              glass-panel-strong rounded-lg border border-border
-                              shadow-glow-cyan overflow-hidden">
+                              bg-white rounded-lg border border-gray-200
+                              shadow-lg overflow-hidden">
                 <div className="max-h-48 overflow-y-auto py-1">
                   {agents.length === 0 ? (
-                    <p className="text-xs text-muted-foreground px-3 py-2 text-center">暂无 Agent</p>
+                    <p className="text-xs text-gray-400 px-3 py-2 text-center">暂无 Agent</p>
                   ) : (
                     agents.map((agent) => (
                       <button
@@ -107,16 +104,16 @@ export function Sidebar({
                         className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs
                                     transition-colors ${
                           activeAgent?.id === agent.id
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                            ? "bg-ds-50 text-ds-600"
+                            : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                         }`}
                       >
                         <Cpu size={12} />
                         <span className="flex-1 truncate">{agent.name}</span>
                         {agent.is_default && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded
-                                           bg-emerald-500/10 text-emerald-500
-                                           border border-emerald-500/20">默认</span>
+                                           bg-emerald-50 text-emerald-600
+                                           border border-emerald-200">默认</span>
                         )}
                       </button>
                     ))
@@ -130,8 +127,7 @@ export function Sidebar({
         {/* New chat button */}
         <Button
           onClick={onNew}
-          className="w-full gap-2 mt-2.5 bg-gradient-to-r from-cyber-500/80 to-neon-500/80
-                     hover:from-cyber-500 hover:to-neon-500 text-white border-0"
+          className="w-full gap-2 mt-2.5 bg-ds-500 hover:bg-ds-600 text-white border-0 shadow-sm"
         >
           <Plus size={15} />
           新对话
@@ -141,12 +137,12 @@ export function Sidebar({
       {/* Search */}
       <div className="px-4 py-2">
         <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索对话..."
-            className="pl-9 h-9 text-xs bg-surface-700/50"
+            className="pl-9 h-9 text-xs bg-white border-gray-200"
           />
         </div>
       </div>
@@ -155,8 +151,8 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
         {filtered.length === 0 ? (
           <div className="text-center py-12">
-            <MessageSquare size={28} className="mx-auto text-muted-foreground/20 mb-3" />
-            <p className="text-xs text-muted-foreground">
+            <MessageSquare size={28} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-xs text-gray-400">
               {search ? "没有匹配的对话" : "暂无对话"}
             </p>
           </div>
@@ -168,13 +164,13 @@ export function Sidebar({
               className={`group flex items-center gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer
                          transition-colors text-sm ${
                 activeId === conv.id
-                  ? "bg-primary/10 border border-primary/20 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/30 border border-transparent"
+                  ? "bg-ds-50 text-ds-600 font-medium"
+                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
               }`}
             >
               <MessageSquare size={14} className="flex-shrink-0" />
               <span className="flex-1 truncate text-xs">{conv.title}</span>
-              <span className="text-[10px] text-muted-foreground/40 tabular-nums flex-shrink-0">
+              <span className="text-[10px] text-gray-300 tabular-nums flex-shrink-0">
                 {conv.message_count}
               </span>
               <button
@@ -182,8 +178,8 @@ export function Sidebar({
                   e.stopPropagation();
                   onDelete(conv.id);
                 }}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground/30
-                           hover:text-destructive transition-all p-0.5"
+                className="opacity-0 group-hover:opacity-100 text-gray-300
+                           hover:text-red-500 transition-all p-0.5"
               >
                 <Trash2 size={12} />
               </button>
@@ -193,12 +189,12 @@ export function Sidebar({
       </div>
 
       {/* Bottom actions */}
-      <Separator />
-      <div className="p-2 space-y-1">
+      <Separator className="bg-gray-200" />
+      <div className="p-2 space-y-0.5">
         <Button
           variant="ghost"
           onClick={onOpenDocuments}
-          className="w-full justify-start gap-2.5 text-xs text-muted-foreground hover:text-foreground"
+          className="w-full justify-start gap-2.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100"
         >
           <FileText size={16} />
           知识库管理
@@ -206,7 +202,7 @@ export function Sidebar({
         <Button
           variant="ghost"
           onClick={onOpenSettings}
-          className="w-full justify-start gap-2.5 text-xs text-muted-foreground hover:text-foreground"
+          className="w-full justify-start gap-2.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100"
         >
           <SettingsIcon size={16} />
           Agent 设置
@@ -214,7 +210,7 @@ export function Sidebar({
         <Button
           variant="ghost"
           onClick={onOpenAdmin}
-          className="w-full justify-start gap-2.5 text-xs text-muted-foreground hover:text-foreground"
+          className="w-full justify-start gap-2.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100"
         >
           <SlidersHorizontal size={16} />
           管理后台
