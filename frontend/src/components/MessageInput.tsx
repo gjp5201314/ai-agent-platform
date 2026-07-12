@@ -191,7 +191,7 @@ export function MessageInput({
             </div>
           )}
 
-          <div className={`relative rounded-xl bg-white border transition-all overflow-hidden
+          <div className={`relative rounded-xl bg-white border transition-all
                           ${useRag
                             ? "border-emerald-300 ring-1 ring-emerald-100"
                             : "border-gray-200 focus-within:border-ds-400 focus-within:ring-2 focus-within:ring-ds-100"}`}>

@@ -182,8 +182,8 @@ export function Settings({ onClose, onAgentChange }: Props) {
                     <p className="text-xs text-gray-400 font-medium">编辑</p>
                     <p className="text-sm font-medium mt-0.5 text-gray-800">{editing.name || "(未命名)"}</p>
                   </div>
-                  <Button onClick={handleSave} size="sm" className="gap-2 bg-ds-500 hover:bg-ds-600">
-                    <Save size={13} />
+                  <Button onClick={handleSave} size="sm" className="gap-2 !bg-ds-500 hover:!bg-ds-600 !text-white border-0 shadow-sm font-medium">
+                    <Save size={13} className="!text-white" />
                     保存设置
                   </Button>
                 </div>
