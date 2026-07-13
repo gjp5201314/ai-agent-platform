@@ -58,9 +58,9 @@ services:
   # ---- Backend (FastAPI + LangGraph) ----
   # Swarm 模式下由内建 DNS 自动对 replicas 做 round-robin 负载均衡
   backend:
-    image: ${ACR_REGISTRY:-registry.cn-hangzhou.aliyuncs.com/YOUR_NAMESPACE}/backend:${IMAGE_TAG:-latest}
+    image: ${ACR_REGISTRY}/backend:${IMAGE_TAG:-latest}
     ports:
-      - "8000:8000"
+      - 8000:8000
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
@@ -97,9 +97,9 @@ services:
 
   # ---- Frontend (React + nginx) ----
   frontend:
-    image: ${ACR_REGISTRY:-registry.cn-hangzhou.aliyuncs.com/YOUR_NAMESPACE}/frontend:${IMAGE_TAG:-latest}
+    image: ${ACR_REGISTRY}/frontend:${IMAGE_TAG:-latest}
     ports:
-      - "80:80"
+      - 80:80
     environment:
       BACKEND_URL: http://backend:8000
     healthcheck:

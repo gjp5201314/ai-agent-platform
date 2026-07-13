@@ -17,7 +17,13 @@ echo_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # ============================================================
 # 1. 检查配置
 # ============================================================
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# 自适应路径: 如果在 scripts/ 下则退一级，否则当前目录
+_SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
+if [ "$(basename "$_SCRIPT_PATH")" = "scripts" ]; then
+    SCRIPT_DIR="$(dirname "$_SCRIPT_PATH")"
+else
+    SCRIPT_DIR="$_SCRIPT_PATH"
+fi
 cd "$SCRIPT_DIR"
 
 echo_info "工作目录: $SCRIPT_DIR"
@@ -87,24 +93,24 @@ else
 fi
 
 # ============================================================
-# 5. 拉取或构建镜像
+# 5. 拉取镜像（仅拉取，不构建）
 # ============================================================
-echo_info "拉取最新镜像..."
+echo_info "拉取镜像..."
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
-docker pull "${ACR_REGISTRY}/backend:${IMAGE_TAG}" 2>/dev/null && echo_info "backend 镜像已拉取" || {
-    echo_warn "远程镜像不存在，开始本地构建..."
-    docker compose -f docker-compose.yml build backend --no-cache
-    docker tag ai-agent-platform-backend "${ACR_REGISTRY}/backend:${IMAGE_TAG}"
-    echo_warn "请手动推送镜像: docker push ${ACR_REGISTRY}/backend:${IMAGE_TAG}"
+docker pull "${ACR_REGISTRY}/backend:${IMAGE_TAG}" || {
+    echo_error "backend 镜像不存在！"
+    echo_warn "请在本地构建并推送: docker compose build && docker push ${ACR_REGISTRY}/backend:${IMAGE_TAG}"
+    exit 1
 }
+echo_info "backend 镜像已拉取"
 
-docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}" 2>/dev/null && echo_info "frontend 镜像已拉取" || {
-    echo_warn "远程镜像不存在，开始本地构建..."
-    docker compose -f docker-compose.yml build frontend --no-cache
-    docker tag ai-agent-platform-frontend "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
-    echo_warn "请手动推送镜像: docker push ${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
+docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}" || {
+    echo_error "frontend 镜像不存在！"
+    echo_warn "请在本地构建并推送: docker compose build && docker push ${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
+    exit 1
 }
+echo_info "frontend 镜像已拉取"
 
 # ============================================================
 # 6. 部署 Stack
@@ -112,8 +118,22 @@ docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}" 2>/dev/null && echo_info "fr
 echo_info "部署 Stack..."
 STACK_NAME="${STACK_NAME:-ai-agent}"
 
-# 使用 docker compose config 解析变量，再通过 docker stack deploy 部署
-docker compose -f docker-compose.prod.yml config | docker stack deploy -c - "${STACK_NAME}"
+# 确保根目录有 .env 软链接（Docker Stack Deploy 读变量需要）
+if [ ! -f ".env" ] && [ -f "backend/.env" ]; then
+    echo_info "创建 .env 软链接..."
+    ln -sf backend/.env .env
+fi
+
+# 导出变量后直接部署（不要用 docker compose config 管道，会把端口转成字符串）
+set -a; source .env 2>/dev/null || source backend/.env 2>/dev/null; set +a
+docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}"
+
+echo_info "等待服务就绪..."
+sleep 5
+
+# 强制更新确保镜像被拉取
+docker service update --force --image "${ACR_REGISTRY}/backend:${IMAGE_TAG}" "${STACK_NAME}_backend" 2>/dev/null || true
+docker service update --force --image "${ACR_REGISTRY}/frontend:${IMAGE_TAG}" "${STACK_NAME}_frontend" 2>/dev/null || true
 
 echo_info "等待服务就绪..."
 sleep 5

@@ -25,7 +25,12 @@ IMAGE_TAG="${1:-latest}"
 STACK_NAME="${STACK_NAME:-ai-agent}"
 
 # 加载环境变量
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+_SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
+if [ "$(basename "$_SCRIPT_PATH")" = "scripts" ]; then
+    SCRIPT_DIR="$(dirname "$_SCRIPT_PATH")"
+else
+    SCRIPT_DIR="$_SCRIPT_PATH"
+fi
 cd "$SCRIPT_DIR"
 
 if [ -f "backend/.env" ]; then
