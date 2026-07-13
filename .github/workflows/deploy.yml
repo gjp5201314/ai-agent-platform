@@ -129,8 +129,8 @@ jobs:
                 docker service update --force --image "${ACR_REGISTRY}/backend:${IMAGE_TAG}" "${STACK_NAME}_backend"
               }
 
-            # 等待 backend 滚动更新完成
-            for i in $(seq 1 40); do
+            # 等待 backend 滚动更新完成（healthcheck start_period=60s + 多轮重试）
+            for i in $(seq 1 60); do
               STATE=$(docker service inspect "${STACK_NAME}_backend" --format '{{.UpdateStatus.State}}' 2>/dev/null || echo "none")
               if [ "$STATE" = "completed" ]; then
                 echo ">>> backend 更新完成!"
@@ -139,7 +139,7 @@ jobs:
                 echo "!!! backend 更新失败，已自动回滚!"
                 exit 1
               fi
-              echo ">>> 更新中... ($i/40) 状态: $STATE"
+              echo ">>> 更新中... ($i/60) 状态: $STATE"
               sleep 3
             done
 

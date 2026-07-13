@@ -77,16 +77,17 @@ services:
       test: ["CMD-SHELL", "curl -sf -X POST http://localhost:8000/api/v1/health | grep -q '\"status\":\"ok\"'"]
       interval: 15s
       timeout: 5s
-      retries: 3
-      start_period: 25s
+      retries: 5
+      # 加宽启动窗口: LangGraph + DB/Redis 握手 + 迁移可能需要 30~50s
+      start_period: 60s
     deploy:
       replicas: 2
       update_config:
         parallelism: 1       # 一次只更新一个实例
-        delay: 10s           # 实例间等待 10s
+        delay: 20s           # 实例间等待 20s（让健康检查完成）
         order: start-first   # 先启动新版，健康检查通过后再停旧版
         failure_action: rollback
-        monitor: 20s         # 新实例运行 20s 后才认为稳定
+        monitor: 30s         # 新实例运行 30s 后才认为稳定
       rollback_config:
         parallelism: 1
         delay: 5s
