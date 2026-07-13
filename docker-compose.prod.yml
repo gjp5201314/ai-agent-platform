@@ -1,0 +1,123 @@
+# ============================================================
+# AI Agent Platform - Docker Compose (Production / Swarm)
+# ============================================================
+# 生产环境部署文件，使用阿里云 ACR 镜像 + Docker Swarm 滚动更新
+#
+# 首次部署: bash scripts/swarm-init.sh
+# 滚动更新: bash scripts/swarm-update.sh
+#
+# 服务:
+#   - postgres  : PostgreSQL 16 + pgvector (向量数据库, replicas=1)
+#   - redis     : Redis 7 (缓存, replicas=1)
+#   - backend   : FastAPI + LangGraph (replicas=2, 滚动更新)
+#   - frontend  : React + nginx (replicas=1)
+# ============================================================
+
+services:
+  # ---- Database ----
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_strong_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aiagent}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agent} -d ${POSTGRES_DB:-aiagent}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+
+  # ---- Cache ----
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+
+  # ---- Backend (FastAPI + LangGraph) ----
+  # Swarm 模式下由内建 DNS 自动对 replicas 做 round-robin 负载均衡
+  backend:
+    image: ${ACR_REGISTRY:-registry.cn-hangzhou.aliyuncs.com/YOUR_NAMESPACE}/backend:${IMAGE_TAG:-latest}
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      APP_HOST: "0.0.0.0"
+      APP_DEBUG: "false"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-agent}:${POSTGRES_PASSWORD:-changeme_strong_password}@postgres:5432/${POSTGRES_DB:-aiagent}"
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-ai-agent-platform}
+      LLM_PROVIDER: ${LLM_PROVIDER:-qwen}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST http://localhost:8000/api/v1/health | grep -q '\"status\":\"ok\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1       # 一次只更新一个实例
+        delay: 10s           # 实例间等待 10s
+        order: start-first   # 先启动新版，健康检查通过后再停旧版
+        failure_action: rollback
+        monitor: 20s         # 新实例运行 20s 后才认为稳定
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  # ---- Frontend (React + nginx) ----
+  frontend:
+    image: ${ACR_REGISTRY:-registry.cn-hangzhou.aliyuncs.com/YOUR_NAMESPACE}/frontend:${IMAGE_TAG:-latest}
+    ports:
+      - "80:80"
+    environment:
+      BACKEND_URL: http://backend:8000
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: 10s
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+volumes:
+  postgres_data:
+  redis_data:
