@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.state import AgentState
 from app.agent.llm import get_llm
-from app.agent.tools import get_tools
+from app.agent.tools import get_tools, get_relevant_tools
 from app.config import settings
 
 
@@ -140,9 +140,40 @@ async def agent_node(state: AgentState) -> dict:
     has_images = agent_config.get("has_images", False)
     llm = get_llm(provider=provider, temperature=temperature, max_tokens=max_tokens, has_images=has_images)
 
-    # Bind tools if enabled
+    # Bind tools if enabled — with semantic routing when there are many tools
     enabled_tools = state.get("tools_enabled", [])
-    tools = get_tools(enabled_tools)
+    routing_enabled = agent_config.get("tool_routing_enabled", settings.tool_routing_enabled)
+
+    if routing_enabled and len(enabled_tools) > settings.tool_routing_min_tools:
+        # Extract latest user query for semantic matching
+        user_query = ""
+        for msg in reversed(state["messages"]):
+            if isinstance(msg, HumanMessage):
+                content = msg.content
+                if isinstance(content, list):
+                    # Multimodal: extract text parts only
+                    text_parts = []
+                    for part in content:
+                        if isinstance(part, str):
+                            text_parts.append(part)
+                        elif isinstance(part, dict) and "text" in part:
+                            text_parts.append(part["text"])
+                    user_query = "".join(text_parts)
+                else:
+                    user_query = str(content)
+                break
+
+        top_k = agent_config.get("tool_routing_top_k_groups", settings.tool_routing_top_k_groups)
+        mode = agent_config.get("tool_routing_mode", settings.tool_routing_mode)
+        tools, selected_groups = get_relevant_tools(
+            user_query, enabled_tools,
+            top_k_groups=top_k,
+            min_tools=settings.tool_routing_min_tools,
+        )
+        print(f"[TOOL-ROUTING] agent_node: selected groups={selected_groups}, tool_count={len(tools)}")
+    else:
+        tools = get_tools(enabled_tools)
+
     if tools:
         llm = llm.bind_tools(tools)
 

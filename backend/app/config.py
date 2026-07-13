@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     redis_password: str = ""
     redis_db: int = 0
 
+    # ---- Tool Routing (semantic tool filtering) ----
+    # When tools exceed the threshold, semantically filter to only relevant groups
+    # before binding to the LLM. Reduces token cost and improves selection accuracy.
+    tool_routing_enabled: bool = True
+    tool_routing_mode: str = "keyword"      # "keyword" (instant, no API) | "embedding" (API-based, more accurate)
+    tool_routing_top_k_groups: int = 2      # Max tool groups to include after filtering
+    tool_routing_min_tools: int = 6         # Only activate when tool count exceeds this
+
     # ---- LangSmith ----
     # LangSmith uses LANGCHAIN_* env vars under the hood.
     # We store them here and apply via os.environ in main startup.

@@ -374,6 +374,118 @@ def tell_joke() -> str:
     return random.choice(_JOKES)
 
 
+# ============================================================
+#  Tool Groups — semantic routing layer
+# ============================================================
+
+TOOL_GROUPS = {
+    "search": {
+        "description": "网页搜索、搜索查询、URL抓取、获取新闻热搜、实时信息、网络检索",
+        "tools": ["web_search", "fetch_url", "get_news"],
+    },
+    "finance_math": {
+        "description": "汇率换算、美元人民币日元欧元、货币兑换、金融计算、算一下、算数、数学计算、加减乘除、数值求值",
+        "tools": ["exchange_rate", "calculator"],
+    },
+    "geo_time": {
+        "description": "天气查询、温度气候、当前日期时间、现在几点、IP地址定位查IP、地理位置信息、时区",
+        "tools": ["get_weather", "get_current_time", "lookup_ip"],
+    },
+    "fun": {
+        "description": "讲个笑话、讲笑话、程序员幽默、娱乐放松、段子",
+        "tools": ["tell_joke"],
+    },
+}
+
+
+def _bigram_jaccard(text1: str, text2: str) -> float:
+    """
+    Character bigram Jaccard similarity.
+    Works for both Chinese (character-level) and English (letter-level).
+    No external dependencies, instant computation.
+    """
+    def bigrams(s: str) -> set:
+        return {s[i:i+2] for i in range(len(s) - 1)}
+
+    b1 = bigrams(text1.lower())
+    b2 = bigrams(text2.lower())
+    if not b1 or not b2:
+        return 0.0
+    return len(b1 & b2) / len(b1 | b2)
+
+
+def get_relevant_tools(
+    user_query: str,
+    enabled_tool_names: list,
+    top_k_groups: int = 2,
+    min_tools: int = 6,
+) -> tuple[list, list]:
+    """
+    Semantically filter tools based on user query intent.
+
+    Two-layer funnel:
+      1. Match user query against TOOL_GROUPS descriptions (bigram Jaccard)
+      2. Expand matched groups → only those tools go to the LLM
+
+    Meta-tools (delegate_to_agent, rag) always pass through unfiltered.
+
+    Args:
+        user_query:         The user's latest message text
+        enabled_tool_names: All tool names enabled for this agent
+        top_k_groups:       Max number of tool groups to include
+        min_tools:          Only activate filtering when tool count exceeds this
+
+    Returns:
+        (filtered_tool_callables, selected_group_names)
+    """
+    if not user_query or len(enabled_tool_names) <= min_tools:
+        return get_tools(enabled_tool_names), ["__all__"]
+
+    # Separate meta-tools (always include)
+    meta_names = {"delegate_to_agent", "rag"}
+    meta_tools = [t for t in enabled_tool_names if t in meta_names]
+    regular_tools = [t for t in enabled_tool_names if t not in meta_names]
+
+    if not regular_tools:
+        return get_tools(enabled_tool_names), ["__meta_only__"]
+
+    # Score each group against the user query
+    scored = []
+    for group_name, group_info in TOOL_GROUPS.items():
+        group_tools = [t for t in group_info["tools"] if t in regular_tools]
+        if not group_tools:
+            continue
+        score = _bigram_jaccard(user_query, group_info["description"])
+        scored.append((score, group_name, group_tools))
+
+    # Sort by score descending
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # Select top_k_groups (only if score > 0)
+    selected_tool_names = []
+    selected_groups = []
+    for score, group_name, group_tools in scored[:top_k_groups]:
+        if score > 0.0:
+            selected_tool_names.extend(group_tools)
+            selected_groups.append(f"{group_name}({score:.2f})")
+
+    # Fallback: if nothing matched, use all regular tools
+    if not selected_tool_names:
+        selected_tool_names = regular_tools
+        selected_groups = ["__fallback_all__"]
+
+    # Merge: selected + meta-tools, deduplicate
+    all_selected = list(dict.fromkeys(selected_tool_names + meta_tools))
+
+    # Convert names to tool callables
+    tools = [ALL_TOOLS[name] for name in all_selected if name in ALL_TOOLS]
+    if "delegate_to_agent" in enabled_tool_names:
+        tools.append(delegate_to_agent)
+
+    print(f"[TOOL-ROUTING] Query: '{user_query[:60]}' → Groups: {selected_groups} → Tools: {[t.name for t in tools]}")
+    return tools, selected_groups
+
+
 # ---- Tool registry ----
 
 ALL_TOOLS = {
