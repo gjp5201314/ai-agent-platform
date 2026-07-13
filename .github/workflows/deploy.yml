@@ -87,7 +87,7 @@ jobs:
           sshpass -e scp -P "$PORT" docker-compose.prod.yml "$USER@$HOST:~/ai-agent-platform/"
           sshpass -e scp -P "$PORT" -r scripts/ "$USER@$HOST:~/ai-agent-platform/"
 
-          echo ">>> SSH 执行滚动更新..."
+          echo ">>> SSH 执行部署..."
           sshpass -e ssh -p "$PORT" "$USER@$HOST" bash -s << 'ENDSCRIPT'
             set -e
             cd ~/ai-agent-platform
@@ -115,49 +115,27 @@ jobs:
             echo ">>> 拉取 frontend:${IMAGE_TAG}"
             docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
 
-            echo ">>> 滚动更新 backend（零停机）..."
-            docker service update \
-              --image "${ACR_REGISTRY}/backend:${IMAGE_TAG}" \
-              --update-parallelism 1 \
-              --update-delay 10s \
-              --update-order start-first \
-              --update-failure-action rollback \
-              "${STACK_NAME}_backend" 2>/dev/null || {
-                echo ">>> Stack 不存在，执行首次部署..."
-                docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}"
-                sleep 5
-                docker service update --force --image "${ACR_REGISTRY}/backend:${IMAGE_TAG}" "${STACK_NAME}_backend"
-              }
+            # 直接用 stack deploy — config 变更（workers/replicas/healthcheck）也会被应用
+            echo ">>> 更新 Stack（replicas=1 / stop-first）..."
+            export ACR_REGISTRY IMAGE_TAG
+            docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}"
 
-            # 等待 backend 滚动更新完成（healthcheck start_period=60s + 多轮重试）
-            for i in $(seq 1 60); do
-              STATE=$(docker service inspect "${STACK_NAME}_backend" --format '{{.UpdateStatus.State}}' 2>/dev/null || echo "none")
-              if [ "$STATE" = "completed" ]; then
-                echo ">>> backend 更新完成!"
+            # 等待 backend 就绪
+            echo ">>> 等待 backend 健康检查..."
+            for i in $(seq 1 30); do
+              TASKS=$(docker service ps "${STACK_NAME}_backend" --no-trunc --format '{{.CurrentState}}' 2>/dev/null | head -3 | tr '\n' '|')
+              if curl -sf -X POST http://localhost:8000/api/v1/health > /dev/null 2>&1; then
+                echo ">>> backend 就绪！(${i}/30)"
                 break
-              elif [ "$STATE" = "rollback_completed" ]; then
-                echo "!!! backend 更新失败，已自动回滚!"
-                exit 1
               fi
-              echo ">>> 更新中... ($i/60) 状态: $STATE"
-              sleep 3
+              echo ">>> [$i/30] $TASKS"
+              sleep 5
             done
 
-            echo ">>> 更新 frontend..."
-            docker service update \
-              --image "${ACR_REGISTRY}/frontend:${IMAGE_TAG}" \
-              --update-order start-first \
-              --update-failure-action rollback \
-              "${STACK_NAME}_frontend"
-
-            echo ">>> 健康检查..."
-            sleep 5
+            echo ">>> 健康检查验证..."
             curl -sf -X POST http://localhost:8000/api/v1/health && echo ">>> 后端 OK" || echo ">>> 后端健康检查失败"
             curl -sf http://localhost:80/ && echo ">>> 前端 OK" || echo ">>> 前端健康检查失败"
 
-            echo ">>> 清理旧镜像..."
-            docker image prune -f
-
-            echo ">>> 当前运行的服务:"
+            echo ">>> 当前服务状态:"
             docker service ls --filter "name=${STACK_NAME}"
           ENDSCRIPT

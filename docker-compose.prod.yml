@@ -81,17 +81,15 @@ services:
       # 加宽启动窗口: LangGraph + DB/Redis 握手 + 迁移可能需要 30~50s
       start_period: 60s
     deploy:
-      replicas: 2
+      # replicas=1: 2GB 服务器只能撑 1 个 backend 实例
+      # 升级到 4GB+ 后可改为 2，配合 workers=2
+      replicas: 1
       update_config:
-        parallelism: 1       # 一次只更新一个实例
-        delay: 20s           # 实例间等待 20s（让健康检查完成）
-        order: start-first   # 先启动新版，健康检查通过后再停旧版
+        order: stop-first    # replicas=1 时端口冲突，必须先停旧再启新（会有 ~10s 短暂中断）
         failure_action: rollback
-        monitor: 30s         # 新实例运行 30s 后才认为稳定
+        monitor: 30s
       rollback_config:
-        parallelism: 1
-        delay: 5s
-        order: start-first
+        order: stop-first
       restart_policy:
         condition: on-failure
         max_attempts: 3
