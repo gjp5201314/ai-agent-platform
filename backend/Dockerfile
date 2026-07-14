@@ -6,10 +6,11 @@ WORKDIR /app
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
-# System deps for pypdf, python-docx, pgvector
+# System deps for pypdf, python-docx, pgvector — and curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps with Aliyun pip mirror
