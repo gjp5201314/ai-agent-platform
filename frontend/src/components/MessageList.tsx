@@ -32,7 +32,7 @@ export function MessageList({ messages, isStreaming, activeAgentId, agents }: Pr
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-md px-6">
           {/* Simple icon */}
-          <div className="mx-auto mb-6 w-16 h-16 rounded-2xl bg-ds-50 flex items-center justify-center">
+          <div className="mx-auto mt-36 mb-6 w-16 h-16 rounded-2xl bg-ds-50 flex items-center justify-center">
             <Bot size={28} className="text-ds-500" />
           </div>
 

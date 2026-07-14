@@ -17,11 +17,6 @@ from langchain_core.tools import tool
 
 from app.config import settings
 from app.core.logger import logger
-from app.database import async_session_factory
-from app.models import AgentConfig
-from app.agent.llm import get_llm
-from sqlalchemy import select
-from langchain_core.messages import SystemMessage, HumanMessage
 
 # Track delegation depth per-request (async-safe, thread-safe)
 _delegate_depth: contextvars.ContextVar[int] = contextvars.ContextVar(
@@ -455,7 +450,7 @@ def get_relevant_tools(
         return get_tools(enabled_tool_names), ["__all__"]
 
     # Separate meta-tools (always include)
-    meta_names = {"delegate_to_agent", "rag"}
+    meta_names = {"delegate_to_agent", "dispatch_tasks", "rag"}
     meta_tools = [t for t in enabled_tool_names if t in meta_names]
     regular_tools = [t for t in enabled_tool_names if t not in meta_names]
 
@@ -494,6 +489,8 @@ def get_relevant_tools(
     tools = [ALL_TOOLS[name] for name in all_selected if name in ALL_TOOLS]
     if "delegate_to_agent" in enabled_tool_names:
         tools.append(delegate_to_agent)
+    if "dispatch_tasks" in enabled_tool_names:
+        tools.append(dispatch_tasks)
 
     logger.debug(f"Tool routing: query='{user_query[:60]}' → groups={selected_groups} → tools={[t.name for t in tools]}")
     return tools, selected_groups
@@ -518,12 +515,15 @@ def get_tools(enabled_tool_names: list) -> list:
     """
     Return the list of tool callables for the given names.
     'rag' is handled separately by the graph (not a LangChain tool).
-    'delegate_to_agent' is a meta-tool loaded on demand.
+    'delegate_to_agent' and 'dispatch_tasks' are meta-tools loaded on demand.
     """
     tools = [ALL_TOOLS[name] for name in enabled_tool_names if name in ALL_TOOLS]
     # Always include delegate_to_agent so agents can delegate to others
     if "delegate_to_agent" in enabled_tool_names:
         tools.append(delegate_to_agent)
+    # dispatch_tasks: parallel multi-agent orchestration
+    if "dispatch_tasks" in enabled_tool_names:
+        tools.append(dispatch_tasks)
     return tools
 
 
@@ -554,45 +554,61 @@ async def delegate_to_agent(agent_id: str, task: str) -> str:
     _delegate_depth.set(depth + 1)
 
     try:
-        async with async_session_factory() as db:
-            result = await db.execute(
-                select(AgentConfig).where(AgentConfig.id == agent_id)
-            )
-            agent = result.scalar_one_or_none()
+        from app.agent.sub_agent import run_sub_agent
 
-            if not agent:
-                return f"委托失败: 找不到ID为 '{agent_id}' 的Agent。可用的Agent ID: default(通用助手), rag-assistant(知识库助手)"
-
-            if not agent.allow_delegation:
-                return f"委托失败: Agent '{agent.name}' 未开启委托功能。"
-
-            messages = [
-                SystemMessage(content=agent.system_prompt),
-                HumanMessage(content=task),
-            ]
-
-            llm = get_llm(
-                temperature=agent.temperature,
-                max_tokens=agent.max_tokens,
-                has_images=False,
-            )
-
-            # Bind the target agent's own tools
-            target_tools = [t for t in agent.enabled_tools if t != "delegate_to_agent"]
-            tool_objs = get_tools(target_tools)
-            if tool_objs:
-                llm = llm.bind_tools(tool_objs)
-
-            # Timeout on the LLM call (doubled for delegation since it may involve sub-tools)
-            response = await asyncio.wait_for(
-                llm.ainvoke(messages),
-                timeout=settings.tool_timeout_seconds * 2,
-            )
-            return f"[Agent: {agent.name}] {response.content}"
-
-    except asyncio.TimeoutError:
-        return f"委托超时: Agent '{agent_id}' 在 {settings.tool_timeout_seconds * 2} 秒内未响应。"
-    except Exception as e:
-        return f"委托执行失败: {str(e)}"
-    finally:
+        result = await run_sub_agent(agent_id=agent_id, task=task)
         _delegate_depth.set(depth)
+        return (
+            f"[Agent: {result.agent_name} | "
+            f"耗时: {result.elapsed_ms:.0f}ms | "
+            f"工具调用: {result.tool_calls}次]\n\n"
+            f"{result.response}"
+        )
+
+    except Exception as e:
+        _delegate_depth.set(depth)
+        return f"委托执行失败: {str(e)}"
+
+
+# ---- Parallel Multi-Agent Dispatch ----
+
+@tool
+async def dispatch_tasks(sub_tasks_json: str) -> str:
+    """
+    Dispatch multiple sub-tasks to specialized agents IN PARALLEL.
+    Use this when a user request requires multiple agents working simultaneously.
+
+    Args:
+        sub_tasks_json: A JSON array of objects, each with "agent_id" and "task".
+            Example: [{"agent_id":"rag-assistant","task":"搜索知识库中关于XX的信息"},
+                      {"agent_id":"default","task":"计算XX"}]
+
+    Returns:
+        Combined results from all sub-agents.
+    """
+    import json as _json
+
+    try:
+        tasks = _json.loads(sub_tasks_json)
+        if not isinstance(tasks, list):
+            return "dispatch_tasks 参数格式错误: 需要 JSON 数组。"
+
+        if len(tasks) > settings.multi_agent_max_parallel * 2:
+            return f"一次最多并行 {settings.multi_agent_max_parallel * 2} 个任务，你传了 {len(tasks)} 个。"
+
+    except _json.JSONDecodeError:
+        return "dispatch_tasks 参数格式错误: 无法解析 JSON。"
+
+    from app.agent.sub_agent import run_sub_agents_parallel, aggregate_results
+
+    # Convert dicts to the expected format
+    agent_tasks = [{"agent_id": t.get("agent_id", "default"), "task": t.get("task", "")} for t in tasks]
+
+    results = await run_sub_agents_parallel(agent_tasks)
+
+    # Aggregate into a single response
+    combined = await aggregate_results(
+        results,
+        original_query="并行处理多个子任务",
+    )
+    return combined

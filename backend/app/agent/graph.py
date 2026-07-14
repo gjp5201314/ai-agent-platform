@@ -78,6 +78,81 @@ def get_graph(enabled_tools: list = None):
     return _graph_cache[key]
 
 
+async def run_agent_graph(
+    messages: list,
+    agent_config: dict,
+    use_rag: bool,
+    db: AsyncSession,
+    timeout_seconds: int = None,
+) -> dict:
+    """
+    Run the agent graph NON-STREAMING — returns the final state.
+    Used by sub-agents and parallel dispatchers that need the complete result,
+    not individual tokens.
+
+    Returns:
+        dict with keys: "response" (str), "sources" (list), "tool_calls" (int)
+    """
+    enabled_tools = agent_config.get("enabled_tools", [])
+    rag_context = []
+
+    # RAG retrieval
+    if use_rag and "rag" in enabled_tools:
+        state_for_rag = AgentState(
+            messages=messages,
+            retrieved_context=[],
+            tools_enabled=enabled_tools,
+            use_rag=True,
+            agent_config=agent_config,
+            iteration=0,
+        )
+        rag_result = await rag_node(state_for_rag, db)
+        rag_context = rag_result.get("retrieved_context", [])
+
+    # Build and run the graph
+    tools_for_graph = [t for t in enabled_tools if t != "rag"]
+    graph = get_graph(tools_for_graph)
+
+    initial_state = AgentState(
+        messages=messages,
+        retrieved_context=rag_context,
+        tools_enabled=tools_for_graph,
+        use_rag=False,
+        agent_config=agent_config,
+        iteration=0,
+    )
+
+    timeout = timeout_seconds or settings.tool_timeout_seconds * 10
+    tool_call_count = 0
+
+    try:
+        async with asyncio.timeout(timeout):
+            final_state = await graph.ainvoke(initial_state)
+    except asyncio.TimeoutError:
+        return {
+            "response": "[子Agent超时] 任务在限定时间内未完成。",
+            "sources": rag_context,
+            "tool_calls": tool_call_count,
+        }
+
+    # Extract the final AI response
+    final_messages = final_state.get("messages", [])
+    response_text = ""
+    for msg in reversed(final_messages):
+        if isinstance(msg, AIMessage) and msg.content:
+            response_text = msg.content
+            break
+        # Count tool calls
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            tool_call_count += len(msg.tool_calls)
+
+    return {
+        "response": response_text or "[子Agent完成，但未生成文本回复]",
+        "sources": rag_context,
+        "tool_calls": tool_call_count,
+    }
+
+
 async def run_agent(
     messages: list,
     agent_config: dict,

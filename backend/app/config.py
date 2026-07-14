@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     tool_timeout_seconds: int = 30          # Max seconds per tool call (network tools)
     delegate_max_depth: int = 3             # Max recursion depth for agent delegation
 
+    # ---- Multi-Agent Orchestration ----
+    # When enabled, the supervisor can dispatch tasks to multiple sub-agents
+    # in parallel. Each sub-agent runs its own full graph loop (agent → tools → agent).
+    multi_agent_enabled: bool = True        # Enable multi-agent supervisor mode
+    multi_agent_max_parallel: int = 3       # Max concurrent sub-agents via asyncio.gather
+
     # ---- LangSmith ----
     # LangSmith uses LANGCHAIN_* env vars under the hood.
     # We store them here and apply via os.environ in main startup.
