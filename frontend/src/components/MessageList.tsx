@@ -274,4 +274,4 @@ const MessageItem = memo(function MessageItem({ message, isStreaming }: { messag
       </div>
     </div>
   );
-}
+});

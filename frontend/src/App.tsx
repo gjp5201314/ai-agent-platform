@@ -7,9 +7,16 @@ import { Toaster } from "@/components/ui/sonner";
 import type { Conversation, AgentConfig, Attachment } from "./types";
 
 // Lazy-load non-critical pages — reduces initial bundle by ~350KB
-const DocumentUpload = lazy(() => import("./components/DocumentUpload"));
-const Settings = lazy(() => import("./components/Settings"));
-const AdminPage = lazy(() => import("./components/AdminPage"));
+// Named exports need to be wrapped in { default: ... } for React.lazy
+const DocumentUpload = lazy(() =>
+  import("./components/DocumentUpload").then(m => ({ default: m.DocumentUpload }))
+);
+const Settings = lazy(() =>
+  import("./components/Settings").then(m => ({ default: m.Settings }))
+);
+const AdminPage = lazy(() =>
+  import("./components/AdminPage").then(m => ({ default: m.AdminPage }))
+);
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -206,7 +213,7 @@ export default function App() {
         {showSettings && (
           <Settings
             onClose={handleCloseSettings}
-            onAgentChange={(agent) => {
+            onAgentChange={(agent: AgentConfig | null) => {
               if (agent) {
                 setActiveAgent(agent);
                 setUseRag(agent.enabled_tools.includes("rag"));
