@@ -124,6 +124,11 @@ jobs:
             export ACR_REGISTRY IMAGE_TAG
             docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}"
 
+            # 强制 force update：防止 Swarm 缓存旧 image 导致服务不重启
+            echo ">>> 强制 force update backend 和 frontend..."
+            docker service update --force --with-registry-auth "${STACK_NAME}_backend" 2>&1 || echo "force update backend 失败，继续"
+            docker service update --force --with-registry-auth "${STACK_NAME}_frontend" 2>&1 || echo "force update frontend 失败，继续"
+
             # 等待 backend 就绪
             echo ">>> 等待 backend 健康检查..."
             for i in $(seq 1 30); do
