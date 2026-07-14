@@ -194,17 +194,29 @@ async def hybrid_search(
     fused = _rrf_fuse(vector_rows, keyword_rows)
     logger.debug(f"RRF fused: {len(fused)} results")
 
-    # Build result objects with threshold filtering
+    # Build similarity lookup: chunk_id → vector cosine similarity (0..1)
+    # Used both for threshold filtering AND as the final score (more meaningful than RRF).
+    similarity_map: dict[str, float] = {
+        row[0]: float(row[4]) for row in vector_rows
+    }
+
+    # Build result objects with threshold filtering (FINALLY using similarity_threshold)
     results: List[RagSearchResult] = []
-    for chunk_id, doc_id, filename, content, _score in fused:
+    for chunk_id, doc_id, filename, content, rrf_score in fused:
         if len(results) >= top_k:
             break
+        # Prefer real vector similarity (0..1); fall back to RRF only if no vector result.
+        # RRF scores are tiny (~0.01-0.05) — bad for threshold checks and misleading for display.
+        effective_score = similarity_map.get(chunk_id, rrf_score)
+        if effective_score < similarity_threshold:
+            # Below relevance threshold — drop. The LLM gets no garbage context.
+            continue
         results.append(RagSearchResult(
             chunk_id=chunk_id,
             document_id=doc_id,
             filename=filename,
             content=content,
-            score=round(_score, 4),
+            score=round(effective_score, 4),
         ))
 
     return results
