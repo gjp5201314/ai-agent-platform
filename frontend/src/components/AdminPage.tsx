@@ -336,27 +336,38 @@ function RagPanel({ documents, onRefresh }: { documents: any[]; onRefresh: () =>
 function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
   const [provider, setProvider] = useState(llmConfig.default_provider);
   const [model, setModel] = useState(llmConfig.active_model || "");
+  const [customModel, setCustomModel] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Local state to avoid page reload
+  const [activeProvider, setActiveProvider] = useState(llmConfig.default_provider);
+  const [activeModel, setActiveModel] = useState(llmConfig.active_model || "");
 
-  // Auto-select first model when provider changes
   const currentProvider = llmConfig.providers.find(p => p.id === provider);
   const models = currentProvider?.models || [];
-  const isActive = provider === llmConfig.default_provider && model === llmConfig.active_model;
+  const effectiveModel = showCustom ? customModel : model;
+  const isActive = provider === activeProvider && effectiveModel === activeModel;
 
   useEffect(() => {
-    if (currentProvider && !models.includes(model)) {
+    if (currentProvider && !models.includes(model) && !showCustom) {
       setModel(currentProvider.default_model || models[0] || "");
     }
-  }, [provider, currentProvider, models, model]);
+  }, [provider, currentProvider, models, model, showCustom]);
 
   const handleSave = async () => {
-    if (!provider || !model) return;
+    const finalModel = showCustom ? customModel.trim() : model;
+    if (!provider || !finalModel) return;
     setSaving(true);
     try {
-      await api.adminLlmUpdate(provider, { model });
-      toast.success(`已切换至 ${model}`, { description: `${currentProvider?.name} 现已生效` });
-      // Reload to refresh the active state
-      setTimeout(() => window.location.reload(), 800);
+      await api.adminLlmUpdate(provider, { model: finalModel });
+      // Update local state — no page reload
+      setActiveProvider(provider);
+      setActiveModel(finalModel);
+      if (showCustom) setCustomModel("");
+      setShowCustom(false);
+      toast.success(`已切换至 ${finalModel}`, {
+        description: `${currentProvider?.name} 现已生效，无需刷新`,
+      });
     } catch (e: any) {
       toast.error("切换失败", { description: e?.message || String(e) });
     }
@@ -365,7 +376,7 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
 
   return (
     <div className="space-y-6">
-      {/* Active status banner */}
+      {/* Active status banner — uses local state, updates immediately */}
       <div className="bg-gradient-to-r from-ds-50 to-indigo-50 rounded-xl border border-ds-100 p-5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-ds-100 flex items-center justify-center">
@@ -374,13 +385,12 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
           <div>
             <div className="text-xs text-ds-400 font-medium">当前激活</div>
             <div className="text-sm font-bold text-ds-600">
-              {llmConfig.default_provider} / {llmConfig.active_model || "未设置"}
+              {activeProvider} / {activeModel || "未设置"}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Provider + Model selectors */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
         {/* Provider selector */}
         <div>
@@ -389,7 +399,7 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
             {llmConfig.providers.map((p) => (
               <button
                 key={p.id}
-                onClick={() => p.enabled && setProvider(p.id)}
+                onClick={() => { p.enabled && setProvider(p.id); setShowCustom(false); }}
                 disabled={!p.enabled || saving}
                 className={`relative px-4 py-3 rounded-lg border text-left transition-all ${
                   !p.enabled ? "opacity-40 cursor-not-allowed bg-gray-50 border-gray-100" :
@@ -398,9 +408,7 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
                     : "border-gray-200 bg-white hover:border-gray-300"
                 }`}
               >
-                {provider === p.id && (
-                  <Check size={14} className="absolute top-2 right-2 text-ds-500" />
-                )}
+                {provider === p.id && <Check size={14} className="absolute top-2 right-2 text-ds-500" />}
                 <div className="text-xs font-semibold text-gray-700">{p.name}</div>
                 <div className="text-[10px] text-gray-400 mt-0.5">{p.models.length} 个模型</div>
               </button>
@@ -417,10 +425,10 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
             {models.map((m) => (
               <button
                 key={m}
-                onClick={() => setModel(m)}
+                onClick={() => { setModel(m); setShowCustom(false); }}
                 disabled={saving}
                 className={`px-3.5 py-2 rounded-lg border text-sm font-medium transition-all ${
-                  model === m
+                  model === m && !showCustom
                     ? "border-ds-300 bg-ds-50 text-ds-600 ring-1 ring-ds-200"
                     : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                 } ${saving ? "opacity-50 cursor-wait" : ""}`}
@@ -428,17 +436,48 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
                 {m}
               </button>
             ))}
+            {/* Custom model trigger */}
+            <button
+              onClick={() => { setShowCustom(true); setCustomModel(""); }}
+              disabled={saving}
+              className={`px-3.5 py-2 rounded-lg border text-sm font-medium transition-all ${
+                showCustom
+                  ? "border-ds-300 bg-ds-50 text-ds-600 ring-1 ring-ds-200"
+                  : "border-dashed border-gray-300 bg-white text-gray-400 hover:border-gray-400 hover:text-gray-500"
+              } ${saving ? "opacity-50 cursor-wait" : ""}`}
+            >
+              + 自定义
+            </button>
           </div>
         </div>
+
+        {/* Custom model input */}
+        {showCustom && (
+          <div className="animate-in">
+            <label className="text-[11px] text-gray-400 font-medium mb-2 block">自定义模型名称</label>
+            <input
+              type="text"
+              value={customModel}
+              onChange={(e) => setCustomModel(e.target.value)}
+              placeholder="例如: qwen-flash, gpt-4o, deepseek-v3..."
+              disabled={saving}
+              className="w-full px-4 py-2.5 rounded-lg border border-ds-200 bg-white text-sm text-gray-700 
+                         placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-ds-200
+                         disabled:opacity-50"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            />
+          </div>
+        )}
 
         {/* Apply button */}
         <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
           <div className="text-[11px] text-gray-400">
-            {isActive ? "已是最新配置" : `将切换至 ${provider} / ${model}`}
+            {isActive ? "已是最新配置" : `将切换至 ${provider} / ${effectiveModel}`}
           </div>
           <button
             onClick={handleSave}
-            disabled={isActive || saving || !provider || !model}
+            disabled={isActive || saving || !provider || !effectiveModel}
             className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
               isActive
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
