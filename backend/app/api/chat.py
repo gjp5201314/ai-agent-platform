@@ -388,13 +388,20 @@ async def _prepare_chat(request: ChatRequest, user_id: str = "default"):
         except Exception as e:
             logger.warning(f"Memory search failed: {e}")
 
-        # 7. Build agent config dict
-        system_prompt = agent.system_prompt if agent else "You are a helpful AI assistant."
+        # 7. Build agent config dict with memory self-awareness
+        system_prompt = agent.system_prompt if agent else (
+            "你是一个拥有长期记忆功能的 AI 助手。你能在跨对话中记住用户告诉你的个人信息、偏好和需求。"
+        )
         if memory_context:
             system_prompt += (
-                f"\n\n以下是与当前用户相关的长期记忆（从历史对话中提取）：\n\n"
+                f"\n\n以下是你对当前用户的长期记忆（由你的记忆系统从历史对话中自动提取）：\n\n"
                 f"{memory_context}\n\n"
                 f"请利用这些记忆来提供更个性化、更连贯的回答。如果记忆与当前问题无关，请忽略。"
+            )
+        else:
+            system_prompt += (
+                "\n\n提示：你拥有长期记忆能力。如果用户要求你记住某些信息（如生日、偏好等），"
+                "请确认收到并表示你会记住，对方可以在下次对话中验证。"
             )
 
         agent_config = {
