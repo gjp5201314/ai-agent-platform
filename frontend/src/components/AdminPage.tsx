@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api/client";
-import { LayoutDashboard, Database, Cpu, BookOpen, ArrowLeft, RefreshCw, Upload, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { LayoutDashboard, Database, Cpu, BookOpen, ArrowLeft, RefreshCw, Upload, Trash2, Check, ChevronsUpDown, Zap } from "lucide-react";
 
 /* ================================================================
    Types
@@ -19,7 +20,7 @@ interface LLMProvider {
   id: string; name: string; enabled: boolean;
   models: string[]; default_model: string; api_key_set: boolean; base_url: string;
 }
-interface LLMConfig { providers: LLMProvider[]; default_provider: string; }
+interface LLMConfig { providers: LLMProvider[]; default_provider: string; active_model: string; }
 
 type Tab = "dashboard" | "rag" | "llm" | "tech";
 
@@ -333,98 +334,159 @@ function RagPanel({ documents, onRefresh }: { documents: any[]; onRefresh: () =>
    LLM Panel
    ================================================================ */
 function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
-  const [switching, setSwitching] = useState<string | null>(null);
+  const [provider, setProvider] = useState(llmConfig.default_provider);
+  const [model, setModel] = useState(llmConfig.active_model || "");
+  const [saving, setSaving] = useState(false);
 
-  const switchModel = async (provider: string, model: string) => {
-    setSwitching(model);
+  // Auto-select first model when provider changes
+  const currentProvider = llmConfig.providers.find(p => p.id === provider);
+  const models = currentProvider?.models || [];
+  const isActive = provider === llmConfig.default_provider && model === llmConfig.active_model;
+
+  useEffect(() => {
+    if (currentProvider && !models.includes(model)) {
+      setModel(currentProvider.default_model || models[0] || "");
+    }
+  }, [provider, currentProvider, models, model]);
+
+  const handleSave = async () => {
+    if (!provider || !model) return;
+    setSaving(true);
     try {
       await api.adminLlmUpdate(provider, { model });
-      alert(`已切换到 ${model}，立即生效！`);
-      setTimeout(() => window.location.reload(), 500);
-    } catch {
-      alert(`切换失败: ${model}`);
+      toast.success(`已切换至 ${model}`, { description: `${currentProvider?.name} 现已生效` });
+      // Reload to refresh the active state
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e: any) {
+      toast.error("切换失败", { description: e?.message || String(e) });
     }
-    setSwitching(null);
+    setSaving(false);
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="text-sm font-semibold text-gray-800 mb-1">大模型提供商</div>
-        <div className="text-xs text-gray-400">
-          默认提供商 <span className="text-ds-500 font-semibold">{llmConfig.default_provider}</span>。
-          在 .env 中配置 API Key 后，对应提供商将自动启用。
+      {/* Active status banner */}
+      <div className="bg-gradient-to-r from-ds-50 to-indigo-50 rounded-xl border border-ds-100 p-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-ds-100 flex items-center justify-center">
+            <Zap size={18} className="text-ds-500" />
+          </div>
+          <div>
+            <div className="text-xs text-ds-400 font-medium">当前激活</div>
+            <div className="text-sm font-bold text-ds-600">
+              {llmConfig.default_provider} / {llmConfig.active_model || "未设置"}
+            </div>
+          </div>
         </div>
       </div>
 
-      {llmConfig.providers.map((p) => (
-        <div
-          key={p.id}
-          className={`bg-white rounded-xl border p-6 transition-all ${
-            p.enabled ? "border-gray-200" : "border-gray-100 opacity-60"
-          }`}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: p.enabled ? "#4D6BFE" : "#d1d5db" }}
-              />
-              <span className="text-base font-bold text-gray-800">{p.name}</span>
-              <span className="text-[11px] text-gray-400 font-mono">{p.id}</span>
-            </div>
-            <span className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium ${
-              p.enabled
-                ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-                : "bg-gray-100 text-gray-400 border border-gray-200"
-            }`}>
-              {p.enabled ? "已启用" : "未配置 API Key"}
-            </span>
+      {/* Provider + Model selectors */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+        {/* Provider selector */}
+        <div>
+          <label className="text-[11px] text-gray-400 font-medium mb-2 block">选择提供商</label>
+          <div className="grid grid-cols-3 gap-2">
+            {llmConfig.providers.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => p.enabled && setProvider(p.id)}
+                disabled={!p.enabled || saving}
+                className={`relative px-4 py-3 rounded-lg border text-left transition-all ${
+                  !p.enabled ? "opacity-40 cursor-not-allowed bg-gray-50 border-gray-100" :
+                  provider === p.id
+                    ? "border-ds-300 bg-ds-50 ring-1 ring-ds-200"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                {provider === p.id && (
+                  <Check size={14} className="absolute top-2 right-2 text-ds-500" />
+                )}
+                <div className="text-xs font-semibold text-gray-700">{p.name}</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{p.models.length} 个模型</div>
+              </button>
+            ))}
           </div>
-
-          {/* Config grid */}
-          <div className="grid grid-cols-2 gap-3 gap-x-8">
-            <ConfigRow label="API 地址" value={p.base_url} />
-            <ConfigRow label="默认模型" value={p.default_model || "未设置"} highlight />
-            <ConfigRow label="API Key" value={p.api_key_set ? "****" + "\u25CF".repeat(12) : "—"} highlight />
-            <ConfigRow label="可用模型数" value={`${p.models.length} 个`} />
-          </div>
-
-          {/* Model tags — click to switch */}
-          {p.enabled && (
-            <div className="mt-5 pt-4 border-t border-gray-100">
-              <div className="text-[11px] text-gray-400 font-medium mb-2">可用模型（点击切换）</div>
-              <div className="flex flex-wrap gap-2">
-                {p.models.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => switchModel(p.id, m)}
-                    disabled={switching !== null}
-                    className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                      switching !== null ? "cursor-wait opacity-50" : "cursor-pointer hover:opacity-80"
-                    } ${
-                      m === p.default_model
-                        ? "bg-ds-50 text-ds-600 border border-ds-200"
-                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
-                    }`}>
-                    {switching === m ? `${m} (切换中...)` : m}{m === p.default_model && switching !== m ? " (默认)" : ""}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
-      ))}
+
+        {/* Model selector */}
+        <div>
+          <label className="text-[11px] text-gray-400 font-medium mb-2 block">
+            选择模型 {currentProvider ? `(${currentProvider.name})` : ""}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {models.map((m) => (
+              <button
+                key={m}
+                onClick={() => setModel(m)}
+                disabled={saving}
+                className={`px-3.5 py-2 rounded-lg border text-sm font-medium transition-all ${
+                  model === m
+                    ? "border-ds-300 bg-ds-50 text-ds-600 ring-1 ring-ds-200"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                } ${saving ? "opacity-50 cursor-wait" : ""}`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Apply button */}
+        <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+          <div className="text-[11px] text-gray-400">
+            {isActive ? "已是最新配置" : `将切换至 ${provider} / ${model}`}
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={isActive || saving || !provider || !model}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              isActive
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-ds-500 text-white hover:bg-ds-600 shadow-sm shadow-ds-200"
+            } ${saving ? "opacity-70 cursor-wait" : ""}`}
+          >
+            <Zap size={14} />
+            {saving ? "切换中..." : isActive ? "已激活" : "确认切换"}
+          </button>
+        </div>
+      </div>
+
+      {/* Provider status cards */}
+      <div>
+        <div className="text-sm font-semibold text-gray-800 mb-4">提供商详情</div>
+        <div className="grid grid-cols-1 gap-4">
+          {llmConfig.providers.map((p) => (
+            <ProviderCard key={p.id} p={p} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-function ConfigRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function ProviderCard({ p }: { p: LLMProvider }) {
   return (
-    <div>
-      <div className="text-[11px] text-gray-400 font-medium mb-1">{label}</div>
-      <div className={`text-sm ${highlight ? "text-ds-500 font-mono" : "text-gray-600"}`}>{value}</div>
+    <div className={`bg-white rounded-xl border p-5 flex items-center gap-4 ${
+      p.enabled ? "border-gray-200" : "border-gray-100 opacity-50"
+    }`}>
+      <div className="flex-shrink-0">
+        <span className="w-3 h-3 rounded-full inline-block"
+          style={{ background: p.enabled ? "#4D6BFE" : "#d1d5db" }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-gray-800">{p.name}</div>
+        <div className="text-[11px] text-gray-400 mt-0.5">
+          {p.enabled ? `${p.models.length} 个模型可用 · ${p.base_url}` : "未配置 API Key"}
+        </div>
+      </div>
+      <div className="flex-shrink-0">
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+          p.enabled ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                    : "bg-gray-100 text-gray-400 border border-gray-200"
+        }`}>
+          {p.enabled ? "可用" : "未启用"}
+        </span>
+      </div>
     </div>
   );
 }

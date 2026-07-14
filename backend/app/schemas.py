@@ -265,6 +265,7 @@ class LLMProviderInfo(BaseModel):
 class LLMConfigResponse(BaseModel):
     providers: List[LLMProviderInfo]
     default_provider: str = ""
+    active_model: str = ""  # The currently active model name
 
 
 class LLMConfigUpdate(BaseModel):

@@ -130,9 +130,15 @@ async def list_llm_config():
             base_url=base_url,
         ))
 
+    # Determine active model
+    active = settings.qwen_model if settings.llm_provider == "qwen" \
+        else settings.openai_model if settings.llm_provider == "openai" \
+        else settings.anthropic_model
+
     return LLMConfigResponse(
         providers=providers,
         default_provider=settings.llm_provider,
+        active_model=active,
     )
 
 
@@ -147,10 +153,20 @@ async def update_llm_config(request: LLMConfigUpdate):
     if request.provider not in _PROVIDER_META:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
 
-    # Apply provider change
+    # Apply provider change + auto-select default model for new provider
+    old_provider = settings.llm_provider
     settings.llm_provider = request.provider
 
-    # Apply model change
+    # If switching providers WITHOUT specifying a model, auto-select the default
+    if request.provider != old_provider and not request.model:
+        if request.provider == "qwen":
+            settings.qwen_model = "qwen-plus"
+        elif request.provider == "openai":
+            settings.openai_model = "gpt-4o-mini"
+        elif request.provider == "claude":
+            settings.anthropic_model = "claude-3-5-sonnet-20241022"
+
+    # Apply explicit model change
     if request.model:
         if request.model not in _PROVIDER_META[request.provider]["models"]:
             raise HTTPException(

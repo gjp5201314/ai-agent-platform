@@ -201,13 +201,13 @@ export const api = {
   adminDashboard: () => fetchJSON<any>(`${API_BASE}/admin/dashboard`),
 
   adminLlmList: () =>
-    fetchJSON<{ providers: any[]; default_provider: string }>(`${API_BASE}/admin/llm/list`),
+    fetchJSON<{ providers: any[]; default_provider: string; active_model: string }>(`${API_BASE}/admin/llm/list`),
 
   adminLlmUpdate: (provider: string, data: Record<string, any>) =>
     fetchJSON<any>(`${API_BASE}/admin/llm/update`, { provider, ...data }),
 
   adminModels: () =>
-    fetchJSON<{ providers: any[]; default_provider: string }>(`${API_BASE}/admin/models`),
+    fetchJSON<{ providers: any[]; default_provider: string; active_model: string }>(`${API_BASE}/admin/models`),
 
   adminRagDocuments: (skip = 0, limit = 50) =>
     fetchJSON<any[]>(`${API_BASE}/admin/rag/documents`, { skip, limit }),
