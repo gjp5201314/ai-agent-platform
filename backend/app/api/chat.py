@@ -564,4 +564,11 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag, use
             except Exception as e:
                 logger.warning(f"Failed to save assistant message: {e}")
 
+    # ALWAYS send the terminal marker so the client knows the stream ended cleanly.
+    # This runs whether the function exits normally, via exception, or via cancellation.
+    try:
         yield "data: [DONE]\n\n"
+    except (GeneratorExit, StopAsyncIteration, RuntimeError):
+        pass
+    except Exception as e:
+        logger.debug(f"Final [DONE] yield error: {e}")

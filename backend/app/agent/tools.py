@@ -573,14 +573,15 @@ async def delegate_to_agent(agent_id: str, task: str) -> str:
 # ---- Parallel Multi-Agent Dispatch ----
 
 @tool
-async def dispatch_tasks(sub_tasks_json: str) -> str:
+async def dispatch_tasks(sub_tasks_json) -> str:
     """
     Dispatch multiple sub-tasks to specialized agents IN PARALLEL.
     Use this when a user request requires multiple agents working simultaneously.
 
     Args:
-        sub_tasks_json: A JSON array of objects, each with "agent_id" and "task".
-            Example: [{"agent_id":"rag-assistant","task":"搜索知识库中关于XX的信息"},
+        sub_tasks_json: A JSON array (or already-parsed list) of objects, each with
+            "agent_id" and "task".
+            Example: [{"agent_id":"rag-assistant","task":"搜索XX"},
                       {"agent_id":"default","task":"计算XX"}]
 
     Returns:
@@ -588,27 +589,50 @@ async def dispatch_tasks(sub_tasks_json: str) -> str:
     """
     import json as _json
 
+    # ---- Parse input (accept both JSON string and Python list/dict) ----
+    tasks = None
+    if isinstance(sub_tasks_json, (list, dict)):
+        tasks = sub_tasks_json if isinstance(sub_tasks_json, list) else [sub_tasks_json]
+    elif isinstance(sub_tasks_json, str):
+        try:
+            tasks = _json.loads(sub_tasks_json)
+            if not isinstance(tasks, list):
+                return "dispatch_tasks 参数格式错误: 需要 JSON 数组。得到: " + type(tasks).__name__
+        except (_json.JSONDecodeError, TypeError):
+            return "dispatch_tasks 参数格式错误: 无法解析 JSON。"
+    else:
+        return f"dispatch_tasks 参数类型错误: {type(sub_tasks_json).__name__}"
+
+    if not tasks:
+        return "dispatch_tasks: 任务列表为空。"
+
+    if len(tasks) > settings.multi_agent_max_parallel * 2:
+        return f"一次最多并行 {settings.multi_agent_max_parallel * 2} 个任务，你传了 {len(tasks)} 个。"
+
+    # ---- Validate task format ----
+    agent_tasks = []
+    for i, t in enumerate(tasks):
+        if not isinstance(t, dict):
+            return f"dispatch_tasks: 第 {i+1} 个任务格式错误，需要对象。得到: {type(t).__name__}"
+        agent_tasks.append({
+            "agent_id": t.get("agent_id", "default"),
+            "task": t.get("task", ""),
+        })
+        if not agent_tasks[-1]["task"]:
+            return f"dispatch_tasks: 第 {i+1} 个任务缺少 'task' 字段。"
+
+    # ---- Execute (full try/except so the tool ALWAYS returns a string) ----
     try:
-        tasks = _json.loads(sub_tasks_json)
-        if not isinstance(tasks, list):
-            return "dispatch_tasks 参数格式错误: 需要 JSON 数组。"
+        from app.agent.sub_agent import run_sub_agents_parallel, aggregate_results
+        results = await run_sub_agents_parallel(agent_tasks)
+        combined = await aggregate_results(
+            results,
+            original_query="并行处理多个子任务",
+        )
+        return combined
 
-        if len(tasks) > settings.multi_agent_max_parallel * 2:
-            return f"一次最多并行 {settings.multi_agent_max_parallel * 2} 个任务，你传了 {len(tasks)} 个。"
-
-    except _json.JSONDecodeError:
-        return "dispatch_tasks 参数格式错误: 无法解析 JSON。"
-
-    from app.agent.sub_agent import run_sub_agents_parallel, aggregate_results
-
-    # Convert dicts to the expected format
-    agent_tasks = [{"agent_id": t.get("agent_id", "default"), "task": t.get("task", "")} for t in tasks]
-
-    results = await run_sub_agents_parallel(agent_tasks)
-
-    # Aggregate into a single response
-    combined = await aggregate_results(
-        results,
-        original_query="并行处理多个子任务",
-    )
-    return combined
+    except asyncio.TimeoutError:
+        return "dispatch_tasks: 部分子任务超时，已返回已有结果。"
+    except Exception as e:
+        logger.error(f"dispatch_tasks failed: {e}", exc_info=True)
+        return f"dispatch_tasks 执行失败: {str(e)[:200]}"
