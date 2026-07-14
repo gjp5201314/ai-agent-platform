@@ -49,7 +49,9 @@ jobs:
             ${{ secrets.ACR_REGISTRY }}/backend:${{ steps.tag.outputs.image_tag }}
             ${{ secrets.ACR_REGISTRY }}/backend:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
+        env:
+          BUILDKIT_PROGRESS: plain
 
       - name: Build & Push Frontend
         uses: docker/build-push-action@v6
@@ -60,7 +62,9 @@ jobs:
             ${{ secrets.ACR_REGISTRY }}/frontend:${{ steps.tag.outputs.image_tag }}
             ${{ secrets.ACR_REGISTRY }}/frontend:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
+        env:
+          BUILDKIT_PROGRESS: plain
 
   deploy:
     needs: build-and-push
