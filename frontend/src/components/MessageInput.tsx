@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Square, Database, Paperclip, X, FileText, ChevronDown, Cpu, Check, Settings } from "lucide-react";
 import { api } from "../api/client";
+import { uploadFile } from "../lib/upload";
+import { ProgressList, type FileProgress } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Attachment } from "../types";
+
+const API_BASE = "/api/v1";
 
 interface Props {
   onSend: (message: string, attachments?: Attachment[]) => void;
@@ -34,6 +38,7 @@ export function MessageInput({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [fileProgresses, setFileProgresses] = useState<FileProgress[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,43 +72,88 @@ export function MessageInput({
       reader.readAsDataURL(file);
     });
 
-  const uploadFile = async (file: File): Promise<boolean> => {
+  /** Validate and upload a single file with progress */
+  const uploadFileWithProgress = async (file: File, index: number): Promise<boolean> => {
+    // Validate type
     if (!ALLOWED_TYPES.includes(file.type)) {
       const ext = file.name.split(".").pop()?.toLowerCase();
-      if (ext && ["py", "js", "ts", "jsx", "tsx", "yaml", "yml", "xml", "html", "css", "sql", "log", "env", "cfg", "ini", "toml", "md", "txt", "csv", "json"].includes(ext)) {
-        // Allow
-      } else {
-        alert(`不支持的文件类型: ${file.name}`);
+      const codeExts = ["py", "js", "ts", "jsx", "tsx", "yaml", "yml", "xml", "html", "css", "sql", "log", "env", "cfg", "ini", "toml", "md", "txt", "csv", "json"];
+      if (!ext || !codeExts.includes(ext)) {
+        setFileProgresses(prev => {
+          const next = [...prev];
+          next[index] = { ...next[index], percent: 100, state: "error", error: "不支持的文件类型" };
+          return next;
+        });
         return false;
       }
     }
     if (file.size > 20 * 1024 * 1024) {
-      alert(`文件太大 (${file.name}): 最大 20MB`);
+      setFileProgresses(prev => {
+        const next = [...prev];
+        next[index] = { ...next[index], percent: 100, state: "error", error: "超过 20MB 限制" };
+        return next;
+      });
       return false;
     }
+
     try {
-      const att = await api.uploadAttachment(file);
+      const result = await uploadFile(
+        `${API_BASE}/chat/upload`,
+        file,
+        (p) => {
+          setFileProgresses(prev => {
+            const next = [...prev];
+            if (next[index]) next[index] = { ...next[index], percent: p.percent, state: "uploading" };
+            return next;
+          });
+        },
+      );
+
+      const att: Attachment = result.data;
       if (IMAGE_TYPES.includes(file.type)) {
         const dataUrl = await fileToDataURL(file);
-        setAttachments((prev) => [...prev, { ...att, url: dataUrl }]);
+        setAttachments(prev => [...prev, { ...att, url: dataUrl }]);
       } else {
-        setAttachments((prev) => [...prev, att]);
+        setAttachments(prev => [...prev, att]);
       }
+
+      setFileProgresses(prev => {
+        const next = [...prev];
+        if (next[index]) next[index] = { ...next[index], percent: 100, state: "success" };
+        return next;
+      });
       return true;
     } catch (err) {
-      alert(`上传失败 (${file.name}): ${(err as Error).message}`);
+      setFileProgresses(prev => {
+        const next = [...prev];
+        if (next[index]) next[index] = { ...next[index], percent: 100, state: "error", error: (err as Error).message };
+        return next;
+      });
       return false;
     }
   };
 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const fileArr = Array.from(files);
+
+    // Init progress bars
+    const initial: FileProgress[] = fileArr.map(f => ({
+      filename: f.name,
+      percent: 0,
+      state: "uploading" as const,
+    }));
+    setFileProgresses(initial);
     setUploading(true);
-    for (const file of Array.from(files)) {
-      await uploadFile(file);
+
+    for (let i = 0; i < fileArr.length; i++) {
+      await uploadFileWithProgress(fileArr[i], i);
     }
+
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    // Clear progress after 2s
+    setTimeout(() => setFileProgresses([]), 2000);
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -116,16 +166,32 @@ export function MessageInput({
     }
     if (imageItems.length === 0) return;
     e.preventDefault();
-    setUploading(true);
+
+    const blobs: File[] = [];
     for (const item of imageItems) {
       const blob = item.getAsFile();
       if (!blob) continue;
       const ext = item.type.split("/")[1] || "png";
       const filename = `clipboard-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
-      const file = new File([blob], filename, { type: item.type });
-      await uploadFile(file);
+      blobs.push(new File([blob], filename, { type: item.type }));
     }
+    if (blobs.length === 0) return;
+
+    // Init progress
+    const initial: FileProgress[] = blobs.map(f => ({
+      filename: f.name,
+      percent: 0,
+      state: "uploading" as const,
+    }));
+    setFileProgresses(initial);
+    setUploading(true);
+
+    for (let i = 0; i < blobs.length; i++) {
+      await uploadFileWithProgress(blobs[i], i);
+    }
+
     setUploading(false);
+    setTimeout(() => setFileProgresses([]), 2000);
   };
 
   const removeAttachment = (id: string) => {
@@ -142,6 +208,13 @@ export function MessageInput({
   return (
     <div className="px-4 pb-4">
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+        {/* Upload progress bars */}
+        {fileProgresses.length > 0 && (
+          <div className="mb-2">
+            <ProgressList files={fileProgresses} />
+          </div>
+        )}
+
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {attachments.map((att) => (

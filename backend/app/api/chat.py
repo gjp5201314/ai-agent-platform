@@ -471,6 +471,19 @@ async def chat(
             db.add(assistant_msg)
             await db.commit()
 
+        # Save to long-term memory (non-streaming path)
+        if full_response:
+            try:
+                await add_memories(
+                    [
+                        {"role": "user", "content": request.message},
+                        {"role": "assistant", "content": full_response},
+                    ],
+                    user_id=ip,
+                )
+            except Exception as e:
+                logger.warning(f"Memory save failed (non-streaming): {e}")
+
         return {
             "conversation_id": conversation_id,
             "content": full_response,

@@ -42,3 +42,4 @@ loguru>=0.7.0
 
 # ===== Long-term Memory =====
 mem0ai>=0.1.0,<0.2.0
+psycopg2-binary>=2.9.0  # required by Mem0 pgvector store

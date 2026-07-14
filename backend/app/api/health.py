@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.core.redis_client import get_redis
+from app.core.memory import get_memory_status
 from app.schemas import HealthCheck
 
 router = APIRouter()
@@ -30,9 +31,18 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     except Exception:
         redis_status = "error"
 
+    # Mem0 long-term memory status
+    memory_status = get_memory_status()
+
+    # Overall status: ok only if all critical services are ok
+    overall = "ok"
+    if db_status != "ok" or redis_status != "ok":
+        overall = "degraded"
+
     return HealthCheck(
-        status="ok" if db_status == "ok" and redis_status == "ok" else "degraded",
+        status=overall,
         database=db_status,
         redis=redis_status,
+        memory=memory_status,
         llm_provider=settings.llm_provider,
     )

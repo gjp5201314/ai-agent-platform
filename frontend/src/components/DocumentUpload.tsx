@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Upload, FileText, Trash2, Database } from "lucide-react";
 import { api } from "../api/client";
+import { uploadFile } from "../lib/upload";
+import { ProgressList, type FileProgress } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -12,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import type { Document } from "../types";
 
+const API_BASE = "/api/v1";
+
 interface Props {
   onClose: () => void;
 }
@@ -19,6 +23,7 @@ interface Props {
 export function DocumentUpload({ onClose }: Props) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [fileProgresses, setFileProgresses] = useState<FileProgress[]>([]);
   const [stats, setStats] = useState({ document_count: 0, chunk_count: 0, total_size_mb: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,17 +43,48 @@ export function DocumentUpload({ onClose }: Props) {
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const fileArr = Array.from(files);
+
+    // Initialize progress for all files
+    const initial: FileProgress[] = fileArr.map(f => ({
+      filename: f.name,
+      percent: 0,
+      state: "uploading" as const,
+    }));
+    setFileProgresses(initial);
     setUploading(true);
-    for (const file of Array.from(files)) {
+
+    for (let i = 0; i < fileArr.length; i++) {
       try {
-        await api.uploadDocument(file);
+        await uploadFile(
+          `${API_BASE}/rag/documents/upload`,
+          fileArr[i],
+          (p) => {
+            setFileProgresses(prev => {
+              const next = [...prev];
+              next[i] = { ...next[i], percent: p.percent, state: "uploading" };
+              return next;
+            });
+          },
+        );
+        setFileProgresses(prev => {
+          const next = [...prev];
+          next[i] = { ...next[i], percent: 100, state: "success" };
+          return next;
+        });
       } catch (err) {
-        alert(`上传失败: ${(err as Error).message}`);
+        setFileProgresses(prev => {
+          const next = [...prev];
+          next[i] = { ...next[i], percent: 100, state: "error", error: (err as Error).message };
+          return next;
+        });
       }
     }
+
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     await loadData();
+    setTimeout(() => setFileProgresses([]), 3000);
   };
 
   const handleDelete = async (id: string) => {
@@ -96,7 +132,7 @@ export function DocumentUpload({ onClose }: Props) {
         </div>
 
         {/* Upload area */}
-        <div className="px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="px-6 py-4 border-b border-gray-100 flex-shrink-0 space-y-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -129,6 +165,9 @@ export function DocumentUpload({ onClose }: Props) {
               </>
             )}
           </button>
+
+          {/* Progress bars */}
+          {fileProgresses.length > 0 && <ProgressList files={fileProgresses} />}
         </div>
 
         {/* Document list */}

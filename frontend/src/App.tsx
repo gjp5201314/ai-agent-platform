@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { createBrowserRouter, RouterProvider, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { ChatInterface } from "./components/ChatInterface";
 import { useChat } from "./hooks/useChat";
@@ -7,7 +8,6 @@ import { Toaster } from "@/components/ui/sonner";
 import type { Conversation, AgentConfig, Attachment } from "./types";
 
 // Lazy-load non-critical pages — reduces initial bundle by ~350KB
-// Named exports need to be wrapped in { default: ... } for React.lazy
 const DocumentUpload = lazy(() =>
   import("./components/DocumentUpload").then(m => ({ default: m.DocumentUpload }))
 );
@@ -18,12 +18,17 @@ const AdminPage = lazy(() =>
   import("./components/AdminPage").then(m => ({ default: m.AdminPage }))
 );
 
-export default function App() {
+/* ================================================================
+   Main Chat Layout (handles all non-admin routes)
+   ================================================================ */
+function ChatLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [showDocuments, setShowDocuments] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [activeAgent, setActiveAgent] = useState<AgentConfig | null>(null);
   const [useRag, setUseRag] = useState(true);
@@ -43,7 +48,7 @@ export default function App() {
 
   // ---- Restore selected conversation from URL hash on refresh ----
   useEffect(() => {
-    const hash = window.location.hash.slice(1); // strip leading #
+    const hash = window.location.hash.slice(1);
     if (hash) {
       loadConversation(hash);
     }
@@ -55,7 +60,6 @@ export default function App() {
     if (conversationId) {
       window.location.hash = conversationId;
     } else {
-      // Clear hash when starting a fresh conversation
       if (window.location.hash) {
         history.replaceState(null, "", window.location.pathname + window.location.search);
       }
@@ -88,11 +92,9 @@ export default function App() {
   useEffect(() => {
     loadConversations();
     loadAgents();
-    // Load available LLM models for the model selector
     api.adminModels().then((r) => setAvailableProviders(r.providers)).catch(() => {});
   }, [loadConversations, loadAgents]);
 
-  // Refresh agents when Settings closes (user may have created/deleted agents)
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
     loadAgents();
@@ -102,7 +104,6 @@ export default function App() {
     (agent: AgentConfig) => {
       setActiveAgent(agent);
       setUseRag(agent.enabled_tools.includes("rag"));
-      // Start a fresh conversation when switching agent
       newConversation();
     },
     [newConversation]
@@ -159,7 +160,7 @@ export default function App() {
           onSwitchAgent={handleSwitchAgent}
           onOpenDocuments={() => setShowDocuments(true)}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenAdmin={() => setShowAdmin(true)}
+          onOpenAdmin={() => navigate("/admin/dashboard")}
         />
       </div>
 
@@ -179,7 +180,7 @@ export default function App() {
               onSwitchAgent={handleSwitchAgent}
               onOpenDocuments={() => { setShowDocuments(true); setShowSidebar(false); }}
               onOpenSettings={() => { setShowSettings(true); setShowSidebar(false); }}
-              onOpenAdmin={() => { setShowAdmin(true); setShowSidebar(false); }}
+              onOpenAdmin={() => { navigate("/admin/dashboard"); setShowSidebar(false); }}
               onClose={() => setShowSidebar(false)}
             />
           </div>
@@ -201,15 +202,14 @@ export default function App() {
           onOpenSidebar={() => setShowSidebar(true)}
           modelProvider={modelProvider}
           onModelProviderChange={setModelProvider}
-          onOpenAdmin={() => setShowAdmin(true)}
+          onOpenAdmin={() => navigate("/admin/dashboard")}
         />
       </div>
 
-      {/* Modals — lazy-loaded, show minimal spinner while loading */}
+      {/* Modals */}
       <Toaster />
       <Suspense fallback={null}>
         {showDocuments && <DocumentUpload onClose={() => setShowDocuments(false)} />}
-        {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
         {showSettings && (
           <Settings
             onClose={handleCloseSettings}
@@ -223,5 +223,70 @@ export default function App() {
         )}
       </Suspense>
     </div>
+  );
+}
+
+/* ================================================================
+   Admin Layout (wraps AdminPage at /admin/*)
+   ================================================================ */
+function AdminLayout() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="fixed inset-0 z-[1000]">
+      <AdminPageWrapper onClose={() => navigate("/")} />
+    </div>
+  );
+}
+
+// Thin wrapper to avoid React.lazy issues with route components
+function AdminPageWrapper({ onClose }: { onClose: () => void }) {
+  return (
+    <Suspense fallback={
+      <div className="fixed inset-0 z-[1000] bg-gray-50 flex items-center justify-center">
+        <div className="text-ds-500 text-sm">加载中...</div>
+      </div>
+    }>
+      <AdminPage onClose={onClose} />
+    </Suspense>
+  );
+}
+
+/* ================================================================
+   Router
+   ================================================================ */
+const router = createBrowserRouter([
+  {
+    path: "/admin",
+    element: <AdminLayout />,
+    children: [
+      { index: true, element: <AdminRedirect /> },
+      { path: "dashboard", element: <AdminPageRoute /> },
+      { path: "rag", element: <AdminPageRoute /> },
+      { path: "llm", element: <AdminPageRoute /> },
+      { path: "tech", element: <AdminPageRoute /> },
+    ],
+  },
+  {
+    path: "*",
+    element: <ChatLayout />,
+  },
+]);
+
+/** Redirect /admin → /admin/dashboard */
+function AdminRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => { navigate("/admin/dashboard", { replace: true }); }, [navigate]);
+  return null;
+}
+
+/** Placeholder — AdminPage renders itself via the layout */
+function AdminPageRoute() {
+  return null;
+}
+
+export default function App() {
+  return (
+    <RouterProvider router={router} />
   );
 }

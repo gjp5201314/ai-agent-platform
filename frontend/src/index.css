@@ -289,6 +289,7 @@ input[type="checkbox"] {
   --animate-fade-in: fadeIn 0.2s ease-out;
   --animate-slide-up: slideUp 0.2s ease-out;
   --animate-bounce-dot: bounceDot 1.4s infinite ease-in-out both;
+  --animate-progress-stripe: progressStripe 0.6s linear infinite;
 }
 
 @keyframes fadeIn {
@@ -302,4 +303,8 @@ input[type="checkbox"] {
 @keyframes bounceDot {
   0%, 80%, 100% { transform: scale(0); }
   40% { transform: scale(1); }
+}
+@keyframes progressStripe {
+  0% { background-position: 0 0; }
+  100% { background-position: 20px 0; }
 }

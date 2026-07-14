@@ -233,6 +233,7 @@ class HealthCheck(BaseModel):
     status: str = "ok"
     database: str = "unknown"
     redis: str = "unknown"
+    memory: dict | None = None
     llm_provider: str = "unknown"
     version: str = "1.0.0"
 

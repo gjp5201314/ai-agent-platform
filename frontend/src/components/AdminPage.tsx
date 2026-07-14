@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "../api/client";
+import { uploadFile } from "../lib/upload";
+import { ProgressList, type FileProgress } from "./ProgressBar";
 import { toast } from "sonner";
-import { LayoutDashboard, Database, Cpu, BookOpen, ArrowLeft, RefreshCw, Upload, Trash2, Check, ChevronsUpDown, Zap } from "lucide-react";
+import { LayoutDashboard, Database, Cpu, BookOpen, ArrowLeft, RefreshCw, Upload, Trash2, Check, Zap } from "lucide-react";
+
+const API_BASE = "/api/v1";
 
 /* ================================================================
    Types
@@ -24,18 +29,28 @@ interface LLMConfig { providers: LLMProvider[]; default_provider: string; active
 
 type Tab = "dashboard" | "rag" | "llm" | "tech";
 
-const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-  { key: "dashboard", label: "仪表盘", icon: <LayoutDashboard size={18} /> },
-  { key: "rag", label: "知识库管理", icon: <Database size={18} /> },
-  { key: "llm", label: "大模型配置", icon: <Cpu size={18} /> },
-  { key: "tech", label: "技术解析", icon: <BookOpen size={18} /> },
+const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode; path: string }[] = [
+  { key: "dashboard", label: "仪表盘", icon: <LayoutDashboard size={18} />, path: "/admin/dashboard" },
+  { key: "rag", label: "知识库管理", icon: <Database size={18} />, path: "/admin/rag" },
+  { key: "llm", label: "大模型配置", icon: <Cpu size={18} />, path: "/admin/llm" },
+  { key: "tech", label: "技术解析", icon: <BookOpen size={18} />, path: "/admin/tech" },
 ];
 
 /* ================================================================
    Main Component
    ================================================================ */
 export function AdminPage({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Derive active tab from URL path
+  const activeTab: Tab = (() => {
+    if (location.pathname.includes("/admin/rag")) return "rag";
+    if (location.pathname.includes("/admin/llm")) return "llm";
+    if (location.pathname.includes("/admin/tech")) return "tech";
+    return "dashboard";
+  })();
+
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [llmConfig, setLlmConfig] = useState<LLMConfig | null>(null);
@@ -53,6 +68,12 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
 
   const maxMsg = stats ? Math.max(stats.total_messages, 1) : 1;
 
+  // Tab navigation handler
+  const goToTab = (tab: Tab) => {
+    const item = NAV_ITEMS.find(n => n.key === tab);
+    if (item) navigate(item.path);
+  };
+
   return (
     <div className="fixed inset-0 z-[1000] bg-gray-50 flex font-sans">
       {/* Sidebar */}
@@ -63,11 +84,11 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
         </div>
         <div className="flex-1 p-2.5">
           {NAV_ITEMS.map((item) => {
-            const active = tab === item.key;
+            const active = activeTab === item.key;
             return (
               <button
                 key={item.key}
-                onClick={() => setTab(item.key)}
+                onClick={() => goToTab(item.key)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
                   active
                     ? "bg-ds-50 text-ds-600"
@@ -96,9 +117,9 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-14 flex items-center justify-between px-7 bg-white border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <span className="text-ds-500">{NAV_ITEMS.find((n) => n.key === tab)?.icon}</span>
+            <span className="text-ds-500">{NAV_ITEMS.find((n) => n.key === activeTab)?.icon}</span>
             <span className="text-sm font-semibold text-gray-800">
-              {NAV_ITEMS.find((n) => n.key === tab)?.label}
+              {NAV_ITEMS.find((n) => n.key === activeTab)?.label}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -113,10 +134,10 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex-1 overflow-auto p-8">
-          {tab === "dashboard" && stats && <Dashboard stats={stats} llmConfig={llmConfig} maxMsg={maxMsg} />}
-          {tab === "rag" && <RagPanel documents={documents} onRefresh={loadAll} />}
-          {tab === "llm" && llmConfig && <LlmPanel llmConfig={llmConfig} />}
-          {tab === "tech" && <TechPanel />}
+          {activeTab === "dashboard" && stats && <Dashboard stats={stats} llmConfig={llmConfig} maxMsg={maxMsg} />}
+          {activeTab === "rag" && <RagPanel documents={documents} onRefresh={loadAll} />}
+          {activeTab === "llm" && llmConfig && <LlmPanel llmConfig={llmConfig} />}
+          {activeTab === "tech" && <TechPanel />}
         </div>
       </div>
     </div>
@@ -124,7 +145,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
 }
 
 /* ================================================================
-   Dashboard
+   Dashboard (unchanged)
    ================================================================ */
 function Dashboard({ stats, llmConfig, maxMsg }: { stats: Stats; llmConfig: LLMConfig | null; maxMsg: number }) {
   const cards = [
@@ -136,13 +157,9 @@ function Dashboard({ stats, llmConfig, maxMsg }: { stats: Stats; llmConfig: LLMC
 
   return (
     <div className="space-y-8">
-      {/* Stat cards */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
         {cards.map((c) => (
-          <div
-            key={c.label}
-            className="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-300 hover:shadow-sm transition-all relative overflow-hidden"
-          >
+          <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-300 hover:shadow-sm transition-all relative overflow-hidden">
             <span className="absolute top-4 right-4 text-xl opacity-40">{c.icon}</span>
             <div className="text-xs text-gray-400 font-medium mb-1.5">{c.label}</div>
             <div className="text-2xl font-bold text-gray-800">{c.value}</div>
@@ -152,64 +169,35 @@ function Dashboard({ stats, llmConfig, maxMsg }: { stats: Stats; llmConfig: LLMC
           </div>
         ))}
       </div>
-
-      {/* Usage bars */}
       <div className="grid grid-cols-2 gap-4">
         <UsageBar label="消息活跃度" pct={Math.min(100, (stats.messages_today / Math.max(maxMsg / 10, 1)) * 100)} color="#4D6BFE" />
         <UsageBar label="文档存储率" pct={Math.min(100, stats.total_storage_mb * 5)} color="#10b981" />
       </div>
-
-      {/* Provider status */}
       <div>
         <div className="text-sm font-semibold text-gray-800 mb-4">LLM 提供商状态</div>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3.5">
           {(llmConfig?.providers || []).map((p) => (
-            <div
-              key={p.id}
-              className={`bg-white rounded-xl border p-5 transition-all relative overflow-hidden ${
-                p.enabled ? "border-gray-200 hover:border-gray-300" : "border-gray-100 opacity-60"
-              }`}
-            >
-              <div
-                className="absolute top-0 left-0 right-0 h-0.5"
-                style={{ background: p.enabled ? "linear-gradient(90deg, #4D6BFE, transparent)" : "#f3f4f6" }}
-              />
+            <div key={p.id} className={`bg-white rounded-xl border p-5 transition-all relative overflow-hidden ${p.enabled ? "border-gray-200 hover:border-gray-300" : "border-gray-100 opacity-60"}`}>
+              <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: p.enabled ? "linear-gradient(90deg, #4D6BFE, transparent)" : "#f3f4f6" }} />
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: p.enabled ? "#10b981" : "#d1d5db" }}
-                  />
+                  <span className="w-2 h-2 rounded-full" style={{ background: p.enabled ? "#10b981" : "#d1d5db" }} />
                   <span className="text-sm font-semibold text-gray-800">{p.name}</span>
                 </div>
-                <span className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                  p.enabled
-                    ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-                    : "bg-gray-100 text-gray-400 border border-gray-200"
-                }`}>
+                <span className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium ${p.enabled ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
                   {p.enabled ? "已启用" : "未配置"}
                 </span>
               </div>
               <div className="text-xs text-gray-500 space-y-1">
                 <div>默认模型 <span className="text-gray-700">{p.default_model || "—"}</span></div>
-                <div>API Key <span className={p.api_key_set ? "text-emerald-500" : "text-red-500"}>
-                  {p.api_key_set ? "已配置" : "未配置"}
-                </span></div>
+                <div>API Key <span className={p.api_key_set ? "text-emerald-500" : "text-red-500"}>{p.api_key_set ? "已配置" : "未配置"}</span></div>
               </div>
               {p.enabled && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {p.models.slice(0, 4).map((m) => (
-                    <span key={m} className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                      m === p.default_model
-                        ? "bg-ds-50 text-ds-600 border border-ds-200"
-                        : "bg-gray-50 text-gray-500 border border-gray-200"
-                    }`}>{m}</span>
+                    <span key={m} className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium ${m === p.default_model ? "bg-ds-50 text-ds-600 border border-ds-200" : "bg-gray-50 text-gray-500 border border-gray-200"}`}>{m}</span>
                   ))}
-                  {p.models.length > 4 && (
-                    <span className="inline-flex text-[10px] px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">
-                      +{p.models.length - 4}
-                    </span>
-                  )}
+                  {p.models.length > 4 && <span className="inline-flex text-[10px] px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">+{p.models.length - 4}</span>}
                 </div>
               )}
             </div>
@@ -228,31 +216,66 @@ function UsageBar({ label, pct, color }: { label: string; pct: number; color: st
         <span className="text-xs font-semibold" style={{ color }}>{Math.round(pct)}%</span>
       </div>
       <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-800"
-          style={{ width: `${pct}%`, background: color }}
-        />
+        <div className="h-full rounded-full transition-all duration-800" style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
   );
 }
 
 /* ================================================================
-   RAG Panel
+   RAG Panel — with progress bars
    ================================================================ */
 function RagPanel({ documents, onRefresh }: { documents: any[]; onRefresh: () => void }) {
   const [uploading, setUploading] = useState(false);
+  const [fileProgresses, setFileProgresses] = useState<FileProgress[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = async (files: FileList | null) => {
     if (!files?.length) return;
+    const fileArr = Array.from(files);
+
+    // Initialize progress state for all files
+    const initial: FileProgress[] = fileArr.map(f => ({
+      filename: f.name,
+      percent: 0,
+      state: "uploading" as const,
+    }));
+    setFileProgresses(initial);
     setUploading(true);
-    for (const f of Array.from(files)) {
-      try { await api.adminRagUpload(f); } catch (e: any) { alert("上传失败: " + e.message); }
+
+    for (let i = 0; i < fileArr.length; i++) {
+      try {
+        await uploadFile(
+          `${API_BASE}/admin/rag/upload`,
+          fileArr[i],
+          (p) => {
+            setFileProgresses(prev => {
+              const next = [...prev];
+              next[i] = { ...next[i], percent: p.percent, state: "uploading" };
+              return next;
+            });
+          },
+        );
+        // Mark as success
+        setFileProgresses(prev => {
+          const next = [...prev];
+          next[i] = { ...next[i], percent: 100, state: "success" };
+          return next;
+        });
+      } catch (e: any) {
+        setFileProgresses(prev => {
+          const next = [...prev];
+          next[i] = { ...next[i], percent: 100, state: "error", error: e.message };
+          return next;
+        });
+      }
     }
+
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
     onRefresh();
+    // Clear progress after 3 seconds
+    setTimeout(() => setFileProgresses([]), 3000);
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -274,14 +297,18 @@ function RagPanel({ documents, onRefresh }: { documents: any[]; onRefresh: () =>
             onChange={(e) => handleUpload(e.target.files)} className="hidden" />
           <button
             onClick={() => fileRef.current?.click()}
+            disabled={uploading}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold
-                       bg-ds-500 text-white hover:bg-ds-600 transition-colors shadow-sm"
+                       bg-ds-500 text-white hover:bg-ds-600 transition-colors shadow-sm disabled:opacity-50"
           >
             <Upload size={13} />
             {uploading ? "上传中..." : "上传文档"}
           </button>
         </div>
       </div>
+
+      {/* Progress bars */}
+      {fileProgresses.length > 0 && <ProgressList files={fileProgresses} />}
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -294,34 +321,19 @@ function RagPanel({ documents, onRefresh }: { documents: any[]; onRefresh: () =>
           <div className="text-center py-16 text-gray-400 text-sm">暂无管理端文档，点击右上角上传</div>
         ) : (
           documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="grid grid-cols-[2fr_0.6fr_0.6fr_0.6fr_0.8fr_1fr_0.5fr] gap-3 px-4 py-3.5
-                         text-sm text-gray-600 items-center border-b border-gray-50
-                         hover:bg-gray-50/50 transition-colors"
-            >
+            <div key={doc.id} className="grid grid-cols-[2fr_0.6fr_0.6fr_0.6fr_0.8fr_1fr_0.5fr] gap-3 px-4 py-3.5 text-sm text-gray-600 items-center border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
               <span className="text-gray-800 font-medium truncate">{doc.filename}</span>
-              <span className="inline-flex text-[10px] px-2 py-0.5 rounded-full bg-ds-50 text-ds-600 border border-ds-200 font-medium w-fit">
-                {doc.file_type}
-              </span>
+              <span className="inline-flex text-[10px] px-2 py-0.5 rounded-full bg-ds-50 text-ds-600 border border-ds-200 font-medium w-fit">{doc.file_type}</span>
               <span>{(doc.file_size / 1024).toFixed(1)} KB</span>
               <span>{doc.chunk_count}</span>
               <span className="inline-flex items-center gap-1.5 text-xs">
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: doc.status === "ready" ? "#10b981" : "#f59e0b" }}
-                />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: doc.status === "ready" ? "#10b981" : "#f59e0b" }} />
                 {doc.status === "ready" ? "就绪" : doc.status}
               </span>
               <span className="text-xs text-gray-400">
                 {new Date(doc.created_at).toLocaleDateString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
               </span>
-              <button
-                onClick={() => handleDelete(doc.id, doc.filename)}
-                className="text-gray-300 hover:text-red-500 transition-colors text-xs font-medium justify-self-center"
-              >
-                删除
-              </button>
+              <button onClick={() => handleDelete(doc.id, doc.filename)} className="text-gray-300 hover:text-red-500 transition-colors text-xs font-medium justify-self-center">删除</button>
             </div>
           ))
         )}
@@ -331,7 +343,7 @@ function RagPanel({ documents, onRefresh }: { documents: any[]; onRefresh: () =>
 }
 
 /* ================================================================
-   LLM Panel
+   LLM Panel (unchanged)
    ================================================================ */
 function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
   const [provider, setProvider] = useState(llmConfig.default_provider);
@@ -339,7 +351,6 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
   const [customModel, setCustomModel] = useState("");
   const [showCustom, setShowCustom] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Local state to avoid page reload
   const [activeProvider, setActiveProvider] = useState(llmConfig.default_provider);
   const [activeModel, setActiveModel] = useState(llmConfig.active_model || "");
 
@@ -360,14 +371,11 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
     setSaving(true);
     try {
       await api.adminLlmUpdate(provider, { model: finalModel });
-      // Update local state — no page reload
       setActiveProvider(provider);
       setActiveModel(finalModel);
       if (showCustom) setCustomModel("");
       setShowCustom(false);
-      toast.success(`已切换至 ${finalModel}`, {
-        description: `${currentProvider?.name} 现已生效，无需刷新`,
-      });
+      toast.success(`已切换至 ${finalModel}`, { description: `${currentProvider?.name} 现已生效，无需刷新` });
     } catch (e: any) {
       toast.error("切换失败", { description: e?.message || String(e) });
     }
@@ -376,38 +384,23 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
 
   return (
     <div className="space-y-6">
-      {/* Active status banner — uses local state, updates immediately */}
       <div className="bg-gradient-to-r from-ds-50 to-indigo-50 rounded-xl border border-ds-100 p-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-ds-100 flex items-center justify-center">
-            <Zap size={18} className="text-ds-500" />
-          </div>
+          <div className="w-10 h-10 rounded-xl bg-ds-100 flex items-center justify-center"><Zap size={18} className="text-ds-500" /></div>
           <div>
             <div className="text-xs text-ds-400 font-medium">当前激活</div>
-            <div className="text-sm font-bold text-ds-600">
-              {activeProvider} / {activeModel || "未设置"}
-            </div>
+            <div className="text-sm font-bold text-ds-600">{activeProvider} / {activeModel || "未设置"}</div>
           </div>
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-        {/* Provider selector */}
         <div>
           <label className="text-[11px] text-gray-400 font-medium mb-2 block">选择提供商</label>
           <div className="grid grid-cols-3 gap-2">
             {llmConfig.providers.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => { p.enabled && setProvider(p.id); setShowCustom(false); }}
-                disabled={!p.enabled || saving}
-                className={`relative px-4 py-3 rounded-lg border text-left transition-all ${
-                  !p.enabled ? "opacity-40 cursor-not-allowed bg-gray-50 border-gray-100" :
-                  provider === p.id
-                    ? "border-ds-300 bg-ds-50 ring-1 ring-ds-200"
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
-              >
+              <button key={p.id} onClick={() => { p.enabled && setProvider(p.id); setShowCustom(false); }} disabled={!p.enabled || saving}
+                className={`relative px-4 py-3 rounded-lg border text-left transition-all ${!p.enabled ? "opacity-40 cursor-not-allowed bg-gray-50 border-gray-100" : provider === p.id ? "border-ds-300 bg-ds-50 ring-1 ring-ds-200" : "border-gray-200 bg-white hover:border-gray-300"}`}>
                 {provider === p.id && <Check size={14} className="absolute top-2 right-2 text-ds-500" />}
                 <div className="text-xs font-semibold text-gray-700">{p.name}</div>
                 <div className="text-[10px] text-gray-400 mt-0.5">{p.models.length} 个模型</div>
@@ -416,87 +409,42 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
           </div>
         </div>
 
-        {/* Model selector */}
         <div>
-          <label className="text-[11px] text-gray-400 font-medium mb-2 block">
-            选择模型 {currentProvider ? `(${currentProvider.name})` : ""}
-          </label>
+          <label className="text-[11px] text-gray-400 font-medium mb-2 block">选择模型 {currentProvider ? `(${currentProvider.name})` : ""}</label>
           <div className="flex flex-wrap gap-2">
             {models.map((m) => (
-              <button
-                key={m}
-                onClick={() => { setModel(m); setShowCustom(false); }}
-                disabled={saving}
-                className={`px-3.5 py-2 rounded-lg border text-sm font-medium transition-all ${
-                  model === m && !showCustom
-                    ? "border-ds-300 bg-ds-50 text-ds-600 ring-1 ring-ds-200"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                } ${saving ? "opacity-50 cursor-wait" : ""}`}
-              >
-                {m}
-              </button>
+              <button key={m} onClick={() => { setModel(m); setShowCustom(false); }} disabled={saving}
+                className={`px-3.5 py-2 rounded-lg border text-sm font-medium transition-all ${model === m && !showCustom ? "border-ds-300 bg-ds-50 text-ds-600 ring-1 ring-ds-200" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"} ${saving ? "opacity-50 cursor-wait" : ""}`}>{m}</button>
             ))}
-            {/* Custom model trigger */}
-            <button
-              onClick={() => { setShowCustom(true); setCustomModel(""); }}
-              disabled={saving}
-              className={`px-3.5 py-2 rounded-lg border text-sm font-medium transition-all ${
-                showCustom
-                  ? "border-ds-300 bg-ds-50 text-ds-600 ring-1 ring-ds-200"
-                  : "border-dashed border-gray-300 bg-white text-gray-400 hover:border-gray-400 hover:text-gray-500"
-              } ${saving ? "opacity-50 cursor-wait" : ""}`}
-            >
-              + 自定义
-            </button>
+            <button onClick={() => { setShowCustom(true); setCustomModel(""); }} disabled={saving}
+              className={`px-3.5 py-2 rounded-lg border text-sm font-medium transition-all ${showCustom ? "border-ds-300 bg-ds-50 text-ds-600 ring-1 ring-ds-200" : "border-dashed border-gray-300 bg-white text-gray-400 hover:border-gray-400 hover:text-gray-500"} ${saving ? "opacity-50 cursor-wait" : ""}`}>+ 自定义</button>
           </div>
         </div>
 
-        {/* Custom model input */}
         {showCustom && (
           <div className="animate-in">
             <label className="text-[11px] text-gray-400 font-medium mb-2 block">自定义模型名称</label>
-            <input
-              type="text"
-              value={customModel}
-              onChange={(e) => setCustomModel(e.target.value)}
-              placeholder="例如: qwen-flash, gpt-4o, deepseek-v3..."
-              disabled={saving}
-              className="w-full px-4 py-2.5 rounded-lg border border-ds-200 bg-white text-sm text-gray-700 
-                         placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-ds-200
-                         disabled:opacity-50"
-              autoFocus
-              onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            />
+            <input type="text" value={customModel} onChange={(e) => setCustomModel(e.target.value)}
+              placeholder="例如: qwen-flash, gpt-4o, deepseek-v3..." disabled={saving}
+              className="w-full px-4 py-2.5 rounded-lg border border-ds-200 bg-white text-sm text-gray-700 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-ds-200 disabled:opacity-50" autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleSave()} />
           </div>
         )}
 
-        {/* Apply button */}
         <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-          <div className="text-[11px] text-gray-400">
-            {isActive ? "已是最新配置" : `将切换至 ${provider} / ${effectiveModel}`}
-          </div>
-          <button
-            onClick={handleSave}
-            disabled={isActive || saving || !provider || !effectiveModel}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-              isActive
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-ds-500 text-white hover:bg-ds-600 shadow-sm shadow-ds-200"
-            } ${saving ? "opacity-70 cursor-wait" : ""}`}
-          >
+          <div className="text-[11px] text-gray-400">{isActive ? "已是最新配置" : `将切换至 ${provider} / ${effectiveModel}`}</div>
+          <button onClick={handleSave} disabled={isActive || saving || !provider || !effectiveModel}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${isActive ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-ds-500 text-white hover:bg-ds-600 shadow-sm shadow-ds-200"} ${saving ? "opacity-70 cursor-wait" : ""}`}>
             <Zap size={14} />
             {saving ? "切换中..." : isActive ? "已激活" : "确认切换"}
           </button>
         </div>
       </div>
 
-      {/* Provider status cards */}
       <div>
         <div className="text-sm font-semibold text-gray-800 mb-4">提供商详情</div>
         <div className="grid grid-cols-1 gap-4">
-          {llmConfig.providers.map((p) => (
-            <ProviderCard key={p.id} p={p} />
-          ))}
+          {llmConfig.providers.map((p) => <ProviderCard key={p.id} p={p} />)}
         </div>
       </div>
     </div>
@@ -505,33 +453,21 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
 
 function ProviderCard({ p }: { p: LLMProvider }) {
   return (
-    <div className={`bg-white rounded-xl border p-5 flex items-center gap-4 ${
-      p.enabled ? "border-gray-200" : "border-gray-100 opacity-50"
-    }`}>
-      <div className="flex-shrink-0">
-        <span className="w-3 h-3 rounded-full inline-block"
-          style={{ background: p.enabled ? "#4D6BFE" : "#d1d5db" }} />
-      </div>
+    <div className={`bg-white rounded-xl border p-5 flex items-center gap-4 ${p.enabled ? "border-gray-200" : "border-gray-100 opacity-50"}`}>
+      <div className="flex-shrink-0"><span className="w-3 h-3 rounded-full inline-block" style={{ background: p.enabled ? "#4D6BFE" : "#d1d5db" }} /></div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-gray-800">{p.name}</div>
-        <div className="text-[11px] text-gray-400 mt-0.5">
-          {p.enabled ? `${p.models.length} 个模型可用 · ${p.base_url}` : "未配置 API Key"}
-        </div>
+        <div className="text-[11px] text-gray-400 mt-0.5">{p.enabled ? `${p.models.length} 个模型可用 · ${p.base_url}` : "未配置 API Key"}</div>
       </div>
       <div className="flex-shrink-0">
-        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-          p.enabled ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-                    : "bg-gray-100 text-gray-400 border border-gray-200"
-        }`}>
-          {p.enabled ? "可用" : "未启用"}
-        </span>
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${p.enabled ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>{p.enabled ? "可用" : "未启用"}</span>
       </div>
     </div>
   );
 }
 
 /* ================================================================
-   Tech Panel
+   Tech Panel (unchanged but updates Mem0 description)
    ================================================================ */
 function TechPanel() {
   const sections = [
@@ -565,11 +501,12 @@ function TechPanel() {
       ],
     },
     {
-      title: "Mem0 长期记忆", color: "#f59e0b", content: "跨会话记忆持久化，基于 Mem0 + Qdrant 向量存储。",
+      title: "Mem0 长期记忆", color: "#f59e0b", content: "跨会话记忆持久化，基于 Mem0 + PostgreSQL/pgvector 向量存储。",
       items: [
         ["记忆存储", "每轮对话结束后异步保存 user+assistant 消息对到 Mem0"],
         ["记忆检索", "发送新消息前基于当前 query 搜索 Mem0 相关记忆，注入 System Prompt"],
         ["用户识别", "基于客户端 IP 作为 user_id（无认证系统下的最佳实践）"],
+        ["持久化", "Mem0 pgvector 存储到 PostgreSQL，容器重启数据不丢失"],
         ["容错降级", "Mem0 初始化/存储/检索失败静默处理，不阻塞主流程"],
       ],
     },
@@ -586,15 +523,15 @@ function TechPanel() {
     {
       title: "工具系统", color: "#6b7280", content: "10 个 LangChain Tool 实现 Agent Function Calling。",
       items: [
-        ["工具列表", "calculator、web_search、get_current_time、get_weather、get_news 等"],
-        ["RAG 特殊工具", "rag 非 LangChain Tool，在图节点中单独处理"],
+        ["工具列表", "calculator、web_search、get_current_time、get_weather、get_news、search_knowledge_base 等"],
+        ["语义路由", "bigram Jaccard 匹配自动选择相关工具组，减少 prompt tokens"],
         ["安全措施", "calculator 用 Python AST 白名单解析；fetch_url 需加固 SSRF 防护"],
       ],
     },
     {
       title: "LLM 多提供商", color: "#4D6BFE", content: "Qwen (DashScope) / OpenAI / Claude 三提供商统一接口。",
       items: [
-        ["Qwen 默认", "qwen-plus 主力模型 + qwen-vl-plus 视觉模型"],
+        ["Qwen 默认", "qwen3.7-plus 主力模型 + qwen-vl-plus 视觉模型"],
         ["通用工厂", "get_llm() 统一创建 ChatOpenAI 实例"],
         ["LLM 缓存", "字典缓存 provider_model_temp_tokens → ChatOpenAI"],
         ["前台切换", "前端 ModelSelector → agent_config → get_llm()"],
@@ -606,14 +543,13 @@ function TechPanel() {
         ["数据库", "PostgreSQL 16 + pgvector 扩展 (HNSW 索引) + async SQLAlchemy 连接池"],
         ["缓存/限流", "Redis 滑动窗口计数器，按 IP 区分"],
         ["安全加固", "全 POST API + JSON body；安全 Header；10MB 请求体上限；api/v1 版本化"],
-        ["前端", "React 18 + Vite + Tailwind CSS 4 + shadcn/ui"],
+        ["前端", "React 18 + Vite + Tailwind CSS 4 + shadcn/ui + react-router-dom"],
         ["部署", "Docker Compose 4 容器 (frontend nginx + backend uvicorn + postgres + redis)"],
       ],
     },
   ];
 
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set(sections.map((_, i) => i)));
-
   const toggle = (i: number) => {
     const next = new Set(expanded);
     next.has(i) ? next.delete(i) : next.add(i);
@@ -624,63 +560,24 @@ function TechPanel() {
     <div className="space-y-4">
       <div>
         <div className="text-sm font-semibold text-gray-800 mb-1">AI Agent 技术全景</div>
-        <div className="text-xs text-gray-400">
-          本平台基于 LangGraph + FastAPI + PostgreSQL/pgvector 构建
-        </div>
+        <div className="text-xs text-gray-400">本平台基于 LangGraph + FastAPI + PostgreSQL/pgvector 构建</div>
       </div>
-
       {sections.map((sec, i) => {
         const open = expanded.has(i);
         return (
-          <div
-            key={i}
-            className="bg-white rounded-xl border border-gray-200 overflow-hidden transition-colors"
-            style={{ borderColor: open ? `${sec.color}30` : "" }}
-          >
-            {/* Header */}
-            <button
-              onClick={() => toggle(i)}
-              className="w-full flex items-center gap-3 px-5 py-4 text-left cursor-pointer select-none
-                         hover:bg-gray-50/50 transition-colors"
-            >
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                style={{ background: `${sec.color}15`, color: sec.color }}
-              >
-                {i + 1}
-              </div>
+          <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden transition-colors" style={{ borderColor: open ? `${sec.color}30` : "" }}>
+            <button onClick={() => toggle(i)} className="w-full flex items-center gap-3 px-5 py-4 text-left cursor-pointer select-none hover:bg-gray-50/50 transition-colors">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ background: `${sec.color}15`, color: sec.color }}>{i + 1}</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-gray-800">{sec.title}</div>
                 <div className="text-xs text-gray-400 mt-0.5">{sec.content}</div>
               </div>
-              <span
-                className="text-gray-300 transition-transform duration-300 text-sm"
-                style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-              >
-                ▼
-              </span>
+              <span className="text-gray-300 transition-transform duration-300 text-sm" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
             </button>
-
-            {/* Body */}
-            <div
-              style={{
-                maxHeight: open ? "999px" : "0px",
-                opacity: open ? 1 : 0,
-                padding: open ? "0 20px 18px 64px" : "0 20px 0 64px",
-                transition: "max-height 0.4s ease, padding 0.3s, opacity 0.2s",
-                overflow: "hidden",
-              }}
-            >
+            <div style={{ maxHeight: open ? "999px" : "0px", opacity: open ? 1 : 0, padding: open ? "0 20px 18px 64px" : "0 20px 0 64px", transition: "max-height 0.4s ease, padding 0.3s, opacity 0.2s", overflow: "hidden" }}>
               {sec.items.map(([label, desc], j) => (
-                <div
-                  key={j}
-                  className="flex gap-3.5 py-2.5"
-                  style={{ borderBottom: j < sec.items.length - 1 ? "1px solid rgba(0,0,0,0.04)" : "none" }}
-                >
-                  <div
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5"
-                    style={{ background: sec.color }}
-                  />
+                <div key={j} className="flex gap-3.5 py-2.5" style={{ borderBottom: j < sec.items.length - 1 ? "1px solid rgba(0,0,0,0.04)" : "none" }}>
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: sec.color }} />
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-gray-700">{label}</div>
                     <div className="text-xs text-gray-400 leading-relaxed mt-0.5">{desc}</div>
@@ -691,12 +588,10 @@ function TechPanel() {
           </div>
         );
       })}
-
       <div className="text-center py-6">
-        <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full
-                         bg-ds-50 border border-ds-200 text-xs text-ds-600">
+        <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-ds-50 border border-ds-200 text-xs text-ds-600">
           <span className="w-1.5 h-1.5 rounded-full bg-ds-500" />
-          FastAPI + LangGraph + PostgreSQL/pgvector + Redis + React
+          FastAPI + LangGraph + PostgreSQL/pgvector + Redis + React + react-router-dom
         </span>
       </div>
     </div>
