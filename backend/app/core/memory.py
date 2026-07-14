@@ -103,7 +103,7 @@ async def search_memories(query: str, user_id: str, limit: int = 5) -> list[dict
         logger.debug(f"Mem0 search skipped: not initialized ({_init_error})")
         return []
     try:
-        results = client.search(query, filters={"user_id": user_id}, limit=limit)
+        results = client.search(query, user_id=user_id, limit=limit)
         if isinstance(results, dict):
             result_list = results.get("results", [])
             if result_list:
