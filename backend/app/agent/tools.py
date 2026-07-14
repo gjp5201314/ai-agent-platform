@@ -450,7 +450,7 @@ def get_relevant_tools(
         return get_tools(enabled_tool_names), ["__all__"]
 
     # Separate meta-tools (always include)
-    meta_names = {"delegate_to_agent", "dispatch_tasks", "rag"}
+    meta_names = {"delegate_to_agent", "dispatch_tasks", "search_knowledge_base", "rag"}
     meta_tools = [t for t in enabled_tool_names if t in meta_names]
     regular_tools = [t for t in enabled_tool_names if t not in meta_names]
 
@@ -514,17 +514,60 @@ ALL_TOOLS = {
 def get_tools(enabled_tool_names: list) -> list:
     """
     Return the list of tool callables for the given names.
-    'rag' is handled separately by the graph (not a LangChain tool).
-    'delegate_to_agent' and 'dispatch_tasks' are meta-tools loaded on demand.
+    'rag' is a legacy pre-process flag (deprecated in favor of search_knowledge_base).
+    'search_knowledge_base' / 'delegate_to_agent' / 'dispatch_tasks' are meta-tools.
     """
     tools = [ALL_TOOLS[name] for name in enabled_tool_names if name in ALL_TOOLS]
-    # Always include delegate_to_agent so agents can delegate to others
+    if "search_knowledge_base" in enabled_tool_names:
+        tools.append(search_knowledge_base)
     if "delegate_to_agent" in enabled_tool_names:
         tools.append(delegate_to_agent)
-    # dispatch_tasks: parallel multi-agent orchestration
     if "dispatch_tasks" in enabled_tool_names:
         tools.append(dispatch_tasks)
     return tools
+
+
+# ---- Knowledge Base Search (on-demand, not pre-processing) ----
+
+@tool
+async def search_knowledge_base(query: str) -> str:
+    """
+    Search the knowledge base for relevant documents, chunks, or information.
+    Use this when the user asks about something that might be in the uploaded
+    documents. The LLM decides WHEN to call this — not every query.
+
+    Args:
+        query: A focused search query (can be different from the user's exact words)
+
+    Returns:
+        Relevant document chunks with filename and content, or an empty result message.
+    """
+    from app.database import async_session_factory
+    from app.rag.retriever import hybrid_search
+    from app.config import settings
+
+    try:
+        async with async_session_factory() as db:
+            results = await hybrid_search(
+                db, query,
+                top_k=4,
+                similarity_threshold=getattr(settings, 'rag_similarity_threshold', 0.5),
+            )
+
+        if not results:
+            return "知识库中未找到与查询相关的内容。"
+
+        lines = ["以下是知识库中与查询相关的内容："]
+        for i, r in enumerate(results, 1):
+            lines.append(f"\n[文档 {i}] {r.filename} (相似度: {r.score:.0%})")
+            lines.append(f"{r.content[:500]}")
+            if len(r.content) > 500:
+                lines.append("...(内容过长已截断)")
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"知识库搜索失败: {str(e)[:200]}"
 
 
 # ---- Agent Delegation (meta-tool: delegates task to another agent) ----

@@ -151,13 +151,15 @@ async def _seed_default_agent():
                 system_prompt=(
                     "你是一个专业的 AI 助手。你可以：\n"
                     "1. 回答用户的问题\n"
-                    "2. 基于上传的知识库文档进行精准问答\n"
-                    "3. 调用工具完成复杂任务（网络搜索、天气查询、新闻、汇率、IP查询等）\n"
+                    "2. 当需要查询上传的文档时，调用 search_knowledge_base 工具搜索知识库\n"
+                    "3. 调用其他工具完成复杂任务（网络搜索、天气查询、新闻、汇率、IP查询等）\n"
+                    "注意：只有用户的问题明确涉及已上传的文档内容时，才调用 search_knowledge_base。\n"
+                    "对于一般知识问题，直接用你的知识回答即可。\n"
                     "请用清晰、专业的中文回答。"
                 ),
                 temperature=0.7,
                 max_tokens=4096,
-                enabled_tools=["rag", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke", "delegate_to_agent"],
+                enabled_tools=["search_knowledge_base", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke", "delegate_to_agent", "dispatch_tasks"],
                 is_default=True,
                 allow_delegation=True,
             )
@@ -183,7 +185,7 @@ async def _seed_default_agent():
                 ),
                 temperature=0.5,
                 max_tokens=4096,
-                enabled_tools=["rag"],
+                enabled_tools=["search_knowledge_base"],
                 rag_top_k=5,
                 rag_similarity_threshold=0.3,  # Lower threshold for broader matching
                 is_default=False,

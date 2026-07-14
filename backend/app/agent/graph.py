@@ -96,8 +96,11 @@ async def run_agent_graph(
     enabled_tools = agent_config.get("enabled_tools", [])
     rag_context = []
 
-    # RAG retrieval
-    if use_rag and "rag" in enabled_tools:
+    # RAG retrieval — only if using legacy "rag" pre-processing.
+    # When "search_knowledge_base" is enabled as a tool, skip pre-processing
+    # because the LLM will decide on-demand whether to search the KB.
+    use_preprocess_rag = use_rag and "rag" in enabled_tools and "search_knowledge_base" not in enabled_tools
+    if use_preprocess_rag:
         state_for_rag = AgentState(
             messages=messages,
             retrieved_context=[],
@@ -171,11 +174,12 @@ async def run_agent(
         Dict events with type 'token', 'tool_start', 'tool_end', 'done'.
     """
     enabled_tools = agent_config.get("enabled_tools", [])
-    logger.debug(f"run_agent: use_rag={use_rag}, enabled_tools={enabled_tools}, rag in tools={'rag' in enabled_tools}")
+    use_preprocess_rag = use_rag and "rag" in enabled_tools and "search_knowledge_base" not in enabled_tools
+    logger.debug(f"run_agent: use_rag={use_rag}, preprocess_rag={use_preprocess_rag}, tools={enabled_tools}")
 
-    # Step 1: RAG retrieval (if enabled) — returns context only, no messages
+    # Step 1: RAG retrieval — only if legacy pre-processing mode (not on-demand tool)
     rag_context = []
-    if use_rag and "rag" in enabled_tools:
+    if use_preprocess_rag:
         state_for_rag = AgentState(
             messages=messages,
             retrieved_context=[],
