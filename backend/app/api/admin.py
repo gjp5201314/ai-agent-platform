@@ -160,15 +160,8 @@ async def update_llm_config(request: LLMConfigUpdate):
 
 # ---- Admin RAG Management ----
 
-import hashlib
-from uuid import uuid4
 from fastapi import UploadFile, File
-
-from app.rag.chunker import extract_text_from_bytes
-from app.rag.retriever import index_document
-
-
-SUPPORTED_TYPES = {"pdf", "docx", "txt", "md"}
+from app.shared import upload_and_index_document
 
 
 @router.post("/rag/documents")
@@ -203,47 +196,11 @@ async def upload_admin_document(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a document to the admin knowledge base (separate from user KB)."""
-    file_type = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if file_type not in SUPPORTED_TYPES:
-        raise HTTPException(status_code=400, detail=f"Unsupported: {file_type}")
-
-    file_bytes = await file.read()
-    if not file_bytes:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    content_hash = hashlib.sha256(file_bytes).hexdigest()
-    existing = await db.execute(
-        select(Document).where(Document.content_hash == content_hash, Document.source == "admin")
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Document already exists in admin KB")
-
-    doc = Document(
-        id=str(uuid4()),
-        filename=file.filename,
-        file_type=file_type,
-        file_size=len(file_bytes),
-        content_hash=content_hash,
-        status="processing",
-        source="admin",
-    )
-    db.add(doc)
-    await db.flush()
-
-    try:
-        await index_document(db, doc.id, file_bytes, file_type, file.filename)
-        await db.commit()
-    except Exception as e:
-        doc.status = "error"
-        await db.commit()
-        raise HTTPException(status_code=500, detail=f"Indexing failed: {str(e)}")
-
-    result = await db.execute(select(Document).where(Document.id == doc.id))
-    d = result.scalar_one()
+    doc = await upload_and_index_document(file, db, source="admin")
     return {
-        "id": d.id, "filename": d.filename, "file_type": d.file_type,
-        "file_size": d.file_size, "chunk_count": d.chunk_count,
-        "status": d.status, "source": d.source,
+        "id": doc.id, "filename": doc.filename, "file_type": doc.file_type,
+        "file_size": doc.file_size, "chunk_count": doc.chunk_count,
+        "status": doc.status, "source": doc.source,
     }
 
 

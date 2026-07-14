@@ -39,11 +39,11 @@ services:
   # ---- Cache ----
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secure_password}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-redis_secure_password} ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,6 +64,7 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secure_password}
       APP_HOST: "0.0.0.0"
       APP_DEBUG: "false"
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-agent}:${POSTGRES_PASSWORD:-changeme_strong_password}@postgres:5432/${POSTGRES_DB:-aiagent}"

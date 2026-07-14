@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
+from app.core.logger import logger
 
 # Enable pgvector extension - must be created before any model uses it
 # We handle CREATE EXTENSION in the init script / migration
@@ -104,6 +105,15 @@ async def init_db():
             ON document_chunks USING GIN (search_vector);
         """))
 
+        # ---- HNSW vector index for fast ANN (cosine distance) ----
+        # HNSW provides orders-of-magnitude faster search than IVFFlat
+        # for high-dimensional vectors, scales with log(N).
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
+            ON document_chunks USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 200);
+        """))
+
     # ---- Re-index existing chunks with CJK tokenization ----
     await _reindex_existing_chunks()
 
@@ -132,4 +142,4 @@ async def _reindex_existing_chunks():
             )
 
         await session.commit()
-        print(f"[Init] Reindexed {len(rows)} document chunks for hybrid keyword search")
+        logger.info(f"Reindexed {len(rows)} document chunks for hybrid keyword search")

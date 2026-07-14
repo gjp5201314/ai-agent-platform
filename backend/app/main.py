@@ -8,6 +8,7 @@ import contextlib
 import uuid as _uuid
 
 from fastapi import FastAPI, Request
+from app.core.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -33,13 +34,13 @@ async def lifespan(app: FastAPI):
     redis = await get_redis()
     await redis.ping()
     os.makedirs(settings.upload_dir, exist_ok=True)
-    print(f"[Startup] Database initialized, Redis connected. Provider: {settings.llm_provider}")
+    logger.info(f"Database initialized, Redis connected. Provider: {settings.llm_provider}")
 
     yield
 
     # ---- Shutdown ----
     await close_redis()
-    print("[Shutdown] Connections closed.")
+    logger.info("Connections closed.")
 
 
 app = FastAPI(
@@ -81,7 +82,7 @@ async def security_headers_middleware(request: Request, call_next):
     # Audit: log request duration (non-blocking print; use structured logging in production)
     elapsed_ms = int((time.time() - request.state.start_time) * 1000)
     if elapsed_ms > 3000:
-        print(f"[Slow] {request.method} {request.url.path} — {elapsed_ms}ms [rid={request_id}]")
+        logger.warning(f"Slow request: {request.method} {request.url.path} — {elapsed_ms}ms [rid={request_id}]")
 
     return response
 
@@ -162,7 +163,7 @@ async def _seed_default_agent():
             )
             db.add(default_agent)
             await db.commit()
-            print("[Startup] Default agent created.")
+            logger.info("Default agent created.")
 
         # ---- Ensure the protected RAG-only agent exists (idempotent by fixed ID) ----
         result = await db.execute(select(AgentConfig).where(AgentConfig.id == "rag-assistant"))
@@ -191,7 +192,7 @@ async def _seed_default_agent():
             )
             db.add(rag_agent)
             await db.commit()
-            print("[Startup] Protected RAG-only agent created.")
+            logger.info("Protected RAG-only agent created.")
 
 
 if __name__ == "__main__":

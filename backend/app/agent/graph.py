@@ -9,6 +9,7 @@ Flow:
                                        END
 """
 from typing import Optional, AsyncIterator
+import asyncio
 
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
@@ -16,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.state import AgentState
 from app.agent.nodes import rag_node, agent_node, should_continue, create_tool_node
+from app.config import settings
+from app.core.logger import logger
 
 
 def build_graph(enabled_tools: list = None):
@@ -93,7 +96,7 @@ async def run_agent(
         Dict events with type 'token', 'tool_start', 'tool_end', 'done'.
     """
     enabled_tools = agent_config.get("enabled_tools", [])
-    print(f"[RAG-DEBUG] run_agent: use_rag={use_rag}, enabled_tools={enabled_tools}, rag in tools={'rag' in enabled_tools}")
+    logger.debug(f"run_agent: use_rag={use_rag}, enabled_tools={enabled_tools}, rag in tools={'rag' in enabled_tools}")
 
     # Step 1: RAG retrieval (if enabled) — returns context only, no messages
     rag_context = []
@@ -108,7 +111,7 @@ async def run_agent(
         )
         rag_result = await rag_node(state_for_rag, db)
         rag_context = rag_result.get("retrieved_context", [])
-        print(f"[RAG-DEBUG] rag_node returned {len(rag_context)} context items")
+        logger.debug(f"rag_node returned {len(rag_context)} context items")
         # NOTE: Do NOT add rag_result["messages"] — agent_node merges context into system prompt
 
     # Yield RAG context info
@@ -131,38 +134,47 @@ async def run_agent(
         iteration=0,
     )
 
-    # Stream the graph execution
-    async for event in graph.astream(initial_state, stream_mode="messages"):
-        # stream_mode="messages" yields (message, metadata) tuples
-        if isinstance(event, tuple):
-            chunk, metadata = event
-            # Stream tokens from the LLM
-            if hasattr(chunk, "content") and chunk.content:
-                yield {
-                    "type": "token",
-                    "content": chunk.content,
-                }
-            # Tool call events
-            if hasattr(chunk, "tool_calls") and chunk.tool_calls:
-                for tc in chunk.tool_calls:
-                    tool_name = tc.get("name", "unknown")
-                    tool_args = tc.get("args", {})
-                    # Emit agent_switch event for delegate_to_agent calls
-                    if tool_name == "delegate_to_agent":
-                        target_id = tool_args.get("agent_id", "")
-                        delegate_task = tool_args.get("task", "")
+    # Stream the graph execution with global timeout
+    # asyncio.timeout wraps every await inside the block, including
+    # each __anext__() call of the async generator (LLM token / tool step).
+    try:
+        async with asyncio.timeout(settings.tool_timeout_seconds * 10):
+            async for event in graph.astream(initial_state, stream_mode="messages"):
+                # stream_mode="messages" yields (message, metadata) tuples
+                if isinstance(event, tuple):
+                    chunk, metadata = event
+                    # Stream tokens from the LLM
+                    if hasattr(chunk, "content") and chunk.content:
                         yield {
-                            "type": "agent_switch",
-                            "from_agent": "current",
-                            "to_agent": target_id,
-                            "task": delegate_task[:100],
+                            "type": "token",
+                            "content": chunk.content,
                         }
-                    yield {
-                        "type": "tool_start",
-                        "name": tool_name,
-                        "args": tool_args,
-                    }
-            if isinstance(chunk, type(None)):
-                continue
+                    # Tool call events
+                    if hasattr(chunk, "tool_calls") and chunk.tool_calls:
+                        for tc in chunk.tool_calls:
+                            tool_name = tc.get("name", "unknown")
+                            tool_args = tc.get("args", {})
+                            # Emit agent_switch event for delegate_to_agent calls
+                            if tool_name == "delegate_to_agent":
+                                target_id = tool_args.get("agent_id", "")
+                                delegate_task = tool_args.get("task", "")
+                                yield {
+                                    "type": "agent_switch",
+                                    "from_agent": "current",
+                                    "to_agent": target_id,
+                                    "task": delegate_task[:100],
+                                }
+                            yield {
+                                "type": "tool_start",
+                                "name": tool_name,
+                                "args": tool_args,
+                            }
+                    if chunk is None:
+                        continue
+    except asyncio.TimeoutError:
+        yield {
+            "type": "token",
+            "content": "\n\n[Agent 执行超时，已终止当前请求。请重试或简化问题。]",
+        }
 
     yield {"type": "done", "sources": rag_context}

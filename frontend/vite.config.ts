@@ -26,6 +26,16 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split large dependencies into independent cacheable chunks
+          react: ["react", "react-dom"],
+          markdown: ["react-markdown", "remark-gfm"],
+          lucide: ["lucide-react"],
+        },
+      },
+    },
   },
 });

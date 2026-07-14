@@ -80,7 +80,7 @@ echo_info "等待服务启动..."
 sleep 10
 
 for i in $(seq 1 12); do
-    if curl -s http://localhost:8000/health | grep -q "ok"; then
+    if curl -sf -X POST http://localhost:8000/api/v1/health | grep -q '"status":"ok"'; then
         echo_info "后端服务已就绪!"
         break
     fi

@@ -74,6 +74,18 @@ class Settings(BaseSettings):
     tool_routing_top_k_groups: int = 2      # Max tool groups to include after filtering
     tool_routing_min_tools: int = 6         # Only activate when tool count exceeds this
 
+    # ---- Rate Limiting ----
+    # Chat endpoint is the most expensive (LLM API cost per request).
+    # Stricter limit: 20 requests per minute per IP.
+    # Read/write endpoints have their own limits in deps.py.
+    rate_limit_chat_max: int = 20           # Max chat requests per window
+    rate_limit_chat_window: int = 60        # Window in seconds
+    rate_limit_enabled: bool = True         # Global rate limit toggle
+
+    # ---- Tool Execution ----
+    tool_timeout_seconds: int = 30          # Max seconds per tool call (network tools)
+    delegate_max_depth: int = 3             # Max recursion depth for agent delegation
+
     # ---- LangSmith ----
     # LangSmith uses LANGCHAIN_* env vars under the hood.
     # We store them here and apply via os.environ in main startup.

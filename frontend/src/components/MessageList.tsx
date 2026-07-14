@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Bot, User, Wrench, FileText, Copy, Check, Sparkles, ArrowRightLeft } from "lucide-react";
@@ -86,7 +86,7 @@ export function MessageList({ messages, isStreaming, activeAgentId, agents }: Pr
   );
 }
 
-function MessageItem({ message, isStreaming }: { message: Message; isStreaming: boolean }) {
+const MessageItem = memo(function MessageItem({ message, isStreaming }: { message: Message; isStreaming: boolean }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
 

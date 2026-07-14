@@ -79,3 +79,21 @@ async def verify_write_rate_limit(request: Request):
 async def verify_read_rate_limit(request: Request):
     """Rate limit for read operations (list/get): 60 req / 60s."""
     await verify_rate_limit(request, max_requests=60, window=60, key_prefix="read")
+
+
+# Convenience: strictest limits for chat (LLM API cost per request)
+async def verify_chat_rate_limit(request: Request):
+    """
+    Rate limit for the chat endpoint.
+    Stricter than others because each request costs LLM API tokens.
+    Configurable via RATE_LIMIT_CHAT_MAX / RATE_LIMIT_CHAT_WINDOW env vars.
+    Default: 20 requests / 60s per IP.
+    """
+    if not settings.rate_limit_enabled:
+        return
+    await verify_rate_limit(
+        request,
+        max_requests=settings.rate_limit_chat_max,
+        window=settings.rate_limit_chat_window,
+        key_prefix="chat",
+    )

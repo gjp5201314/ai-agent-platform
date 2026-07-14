@@ -9,11 +9,24 @@ import urllib.request
 import urllib.parse
 import json
 import re
+import asyncio
+import contextvars
 from typing import Optional
 
 from langchain_core.tools import tool
 
+from app.config import settings
+from app.core.logger import logger
+from app.database import async_session_factory
+from app.models import AgentConfig
+from app.agent.llm import get_llm
+from sqlalchemy import select
+from langchain_core.messages import SystemMessage, HumanMessage
 
+# Track delegation depth per-request (async-safe, thread-safe)
+_delegate_depth: contextvars.ContextVar[int] = contextvars.ContextVar(
+    "delegate_depth", default=0
+)
 # ---- Calculator ----
 
 _SAFE_OPS = {
@@ -78,7 +91,7 @@ def web_search(query: str, max_results: int = 5) -> str:
     try:
         from duckduckgo_search import DDGS
 
-        with DDGS() as ddgs:
+        with DDGS(timeout=settings.tool_timeout_seconds) as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
 
         if not results:
@@ -482,7 +495,7 @@ def get_relevant_tools(
     if "delegate_to_agent" in enabled_tool_names:
         tools.append(delegate_to_agent)
 
-    print(f"[TOOL-ROUTING] Query: '{user_query[:60]}' → Groups: {selected_groups} → Tools: {[t.name for t in tools]}")
+    logger.debug(f"Tool routing: query='{user_query[:60]}' → groups={selected_groups} → tools={[t.name for t in tools]}")
     return tools, selected_groups
 
 
@@ -531,12 +544,14 @@ async def delegate_to_agent(agent_id: str, task: str) -> str:
     Returns:
         The result from the target agent.
     """
-    from app.database import async_session_factory
-    from app.models import AgentConfig
-    from app.agent.llm import get_llm
-    from app.agent.tools import get_tools as _get_tools
-    from sqlalchemy import select
-    from langchain_core.messages import SystemMessage, HumanMessage
+    # ---- recursion guard ----
+    depth = _delegate_depth.get()
+    if depth >= settings.delegate_max_depth:
+        return (
+            f"委托失败: 已达到最大委托深度({settings.delegate_max_depth}层)。"
+            f"当前深度={depth}，请直接回答问题，不要再委托。"
+        )
+    _delegate_depth.set(depth + 1)
 
     try:
         async with async_session_factory() as db:
@@ -564,12 +579,20 @@ async def delegate_to_agent(agent_id: str, task: str) -> str:
 
             # Bind the target agent's own tools
             target_tools = [t for t in agent.enabled_tools if t != "delegate_to_agent"]
-            tool_objs = _get_tools(target_tools)
+            tool_objs = get_tools(target_tools)
             if tool_objs:
                 llm = llm.bind_tools(tool_objs)
 
-            response = await llm.ainvoke(messages)
+            # Timeout on the LLM call (doubled for delegation since it may involve sub-tools)
+            response = await asyncio.wait_for(
+                llm.ainvoke(messages),
+                timeout=settings.tool_timeout_seconds * 2,
+            )
             return f"[Agent: {agent.name}] {response.content}"
 
+    except asyncio.TimeoutError:
+        return f"委托超时: Agent '{agent_id}' 在 {settings.tool_timeout_seconds * 2} 秒内未响应。"
     except Exception as e:
         return f"委托执行失败: {str(e)}"
+    finally:
+        _delegate_depth.set(depth)

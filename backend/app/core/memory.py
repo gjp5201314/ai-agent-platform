@@ -11,6 +11,7 @@ OpenAI-compatible embedding APIs (DashScope text-embedding-v3).
 from mem0 import Memory
 
 from app.config import settings
+from app.core.logger import logger
 
 # Mem0 config — uses DashScope for both LLM (extraction) and embedding
 _mem0_config = {
@@ -36,7 +37,7 @@ _mem0_config = {
 try:
     _memory_client = Memory.from_config(_mem0_config)
 except Exception as e:
-    print(f"[Mem0] Failed to initialize: {e}")
+    logger.warning(f"Mem0 init failed: {e}")
     _memory_client = None
 
 
@@ -52,7 +53,7 @@ async def search_memories(query: str, user_id: str, limit: int = 5) -> list[dict
         results = _memory_client.search(query, user_id=user_id, limit=limit)
         return results.get("results", []) if isinstance(results, dict) else []
     except Exception as e:
-        print(f"[Mem0] Search error: {e}")
+        logger.warning(f"Mem0 search error: {e}")
         return []
 
 
@@ -71,4 +72,4 @@ async def add_memories(messages: list[dict], user_id: str) -> None:
     try:
         _memory_client.add(messages, user_id=user_id)
     except Exception as e:
-        print(f"[Mem0] Add error: {e}")
+        logger.warning(f"Mem0 add error: {e}")

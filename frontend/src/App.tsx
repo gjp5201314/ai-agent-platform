@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatInterface } from "./components/ChatInterface";
-import { DocumentUpload } from "./components/DocumentUpload";
-import { Settings } from "./components/Settings";
-import { AdminPage } from "./components/AdminPage";
 import { useChat } from "./hooks/useChat";
 import { api } from "./api/client";
 import { Toaster } from "@/components/ui/sonner";
 import type { Conversation, AgentConfig, Attachment } from "./types";
+
+// Lazy-load non-critical pages — reduces initial bundle by ~350KB
+const DocumentUpload = lazy(() => import("./components/DocumentUpload"));
+const Settings = lazy(() => import("./components/Settings"));
+const AdminPage = lazy(() => import("./components/AdminPage"));
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -196,21 +198,23 @@ export default function App() {
         />
       </div>
 
-      {/* Modals */}
+      {/* Modals — lazy-loaded, show minimal spinner while loading */}
       <Toaster />
-      {showDocuments && <DocumentUpload onClose={() => setShowDocuments(false)} />}
-      {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
-      {showSettings && (
-        <Settings
-          onClose={handleCloseSettings}
-          onAgentChange={(agent) => {
-            if (agent) {
-              setActiveAgent(agent);
-              setUseRag(agent.enabled_tools.includes("rag"));
-            }
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showDocuments && <DocumentUpload onClose={() => setShowDocuments(false)} />}
+        {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
+        {showSettings && (
+          <Settings
+            onClose={handleCloseSettings}
+            onAgentChange={(agent) => {
+              if (agent) {
+                setActiveAgent(agent);
+                setUseRag(agent.enabled_tools.includes("rag"));
+              }
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

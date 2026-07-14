@@ -17,6 +17,7 @@ from app.models import Document, DocumentChunk
 from app.rag.embeddings import embed_query, embed_texts
 from app.rag.chunker import split_text, extract_text_from_bytes
 from app.schemas import RagSearchResult
+from app.core.logger import logger
 
 
 # ============================================================
@@ -173,25 +174,25 @@ async def hybrid_search(
     fetch_k = max(top_k * 3, 10)
 
     # DEBUG: Log search parameters
-    print(f"[RAG-DEBUG] hybrid_search called: query='{query[:50]}', top_k={top_k}, threshold={similarity_threshold}, source={source}")
+    logger.debug(f"hybrid_search: query='{query[:50]}', top_k={top_k}, threshold={similarity_threshold}, source={source}")
 
     # Run both searches in parallel
     try:
         vector_rows = await vector_search(db, query, top_k=fetch_k, source=source)
-        print(f"[RAG-DEBUG] vector_search returned {len(vector_rows)} results")
+        logger.debug(f"vector_search returned {len(vector_rows)} results")
     except Exception as e:
-        print(f"[RAG-DEBUG] vector_search FAILED: {e}")
+        logger.warning(f"vector_search FAILED: {e}")
         vector_rows = []
     try:
         keyword_rows = await keyword_search(db, query, top_k=fetch_k, source=source)
-        print(f"[RAG-DEBUG] keyword_search returned {len(keyword_rows)} results")
+        logger.debug(f"keyword_search returned {len(keyword_rows)} results")
     except Exception as e:
-        print(f"[RAG-DEBUG] keyword_search FAILED: {e}")
+        logger.warning(f"keyword_search FAILED: {e}")
         keyword_rows = []
 
     # RRF fusion
     fused = _rrf_fuse(vector_rows, keyword_rows)
-    print(f"[RAG-DEBUG] RRF fused: {len(fused)} results")
+    logger.debug(f"RRF fused: {len(fused)} results")
 
     # Build result objects with threshold filtering
     results: List[RagSearchResult] = []

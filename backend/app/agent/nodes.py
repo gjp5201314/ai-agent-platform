@@ -10,6 +10,7 @@ from app.agent.state import AgentState
 from app.agent.llm import get_llm
 from app.agent.tools import get_tools, get_relevant_tools
 from app.config import settings
+from app.core.logger import logger
 
 
 def _ensure_str_content(msg):
@@ -170,7 +171,7 @@ async def agent_node(state: AgentState) -> dict:
             top_k_groups=top_k,
             min_tools=settings.tool_routing_min_tools,
         )
-        print(f"[TOOL-ROUTING] agent_node: selected groups={selected_groups}, tool_count={len(tools)}")
+        logger.debug(f"agent_node: selected groups={selected_groups}, tool_count={len(tools)}")
     else:
         tools = get_tools(enabled_tools)
 

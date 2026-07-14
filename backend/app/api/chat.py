@@ -18,7 +18,7 @@ import base64
 import mimetypes
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, Header
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,10 +27,11 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from app.database import async_session_factory
 from app.models import Conversation, Message, AgentConfig
 from app.schemas import ChatRequest
-from app.deps import get_default_agent
+from app.deps import get_default_agent, verify_chat_rate_limit
 from app.agent.graph import run_agent
 from app.config import settings
 from app.core.memory import search_memories, add_memories
+from app.core.logger import logger
 
 router = APIRouter()
 
@@ -203,7 +204,7 @@ async def _compress_context(
         resp = await llm.ainvoke([HumanMessage(content=summary_prompt)])
         summary_text += resp.content
     except Exception as e:
-        print(f"[Chat] Context compression failed: {e}")
+        logger.warning(f"Context compression failed: {e}")
         summary_text += convo_str[:1000]  # fallback: raw text truncation
 
     # Replace older messages in DB with a single summary message
@@ -227,7 +228,7 @@ async def _compress_context(
             await db.flush()
             await db.commit()
     except Exception as e:
-        print(f"[Chat] Failed to persist compressed context: {e}")
+        logger.warning(f"Failed to persist compressed context: {e}")
 
     # Return: summary + recent messages (as DB models for consistency)
     # Build a synthetic summary Message object for the response
@@ -385,7 +386,7 @@ async def _prepare_chat(request: ChatRequest, user_id: str = "default"):
                 if memory_lines:
                     memory_context = "\n\n".join(memory_lines)
         except Exception as e:
-            print(f"[Chat] Memory search failed: {e}")
+            logger.warning(f"Memory search failed: {e}")
 
         # 7. Build agent config dict
         system_prompt = agent.system_prompt if agent else "You are a helpful AI assistant."
@@ -419,6 +420,7 @@ async def chat(
     req: Request,
     x_forwarded_for: str | None = Header(None),
     x_real_ip: str | None = Header(None),
+    _rate_limited=Depends(verify_chat_rate_limit),
 ):
     """
     Send a message (text + optional attachments) and receive streaming AI response.
@@ -502,9 +504,13 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag, use
                     yield f"data: {json.dumps({'type': 'done', 'sources': sources}, ensure_ascii=False)}\n\n"
 
     except Exception as e:
-        error_msg = f"Agent 执行错误: {str(e)}"
+        # Log full traceback server-side, return sanitized message to client
+        import traceback
+        logger.error(f"Agent error: {type(e).__name__}: {e}", exc_info=True)
+        traceback.print_exc()
+        error_msg = "抱歉，服务暂时不可用，请稍后重试。"
         yield f"data: {json.dumps({'type': 'error', 'content': error_msg}, ensure_ascii=False)}\n\n"
-        full_response = f"\u26a0\ufe0f {error_msg}"
+        full_response = f"[系统提示] {error_msg}"
     finally:
         if full_response:
             try:
@@ -554,8 +560,8 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag, use
                                 user_id=user_id,
                             )
                     except Exception as e:
-                        print(f"[Chat] Memory save failed: {e}")
+                        logger.warning(f"Memory save failed: {e}")
             except Exception as e:
-                print(f"[Chat] Failed to save assistant message: {e}")
+                logger.warning(f"Failed to save assistant message: {e}")
 
         yield "data: [DONE]\n\n"

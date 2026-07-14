@@ -2,9 +2,6 @@
 RAG endpoints — enterprise design: all operations use POST with JSON body.
 No document IDs or query params ever appear in URLs.
 """
-import hashlib
-from uuid import uuid4
-
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +10,7 @@ from app.database import get_db
 from app.models import Document, DocumentChunk
 from app.rag.chunker import extract_text_from_bytes
 from app.rag.retriever import index_document, hybrid_search
+from app.shared import upload_and_index_document
 from app.schemas import (
     DocumentOut,
     RagSearchResult,
@@ -24,14 +22,6 @@ from app.schemas import (
 
 
 router = APIRouter()
-
-SUPPORTED_TYPES = {"pdf", "docx", "txt", "md"}
-
-
-def _get_file_type(filename: str) -> str:
-    ext = filename.rsplit(".", 1)[-1].lower().lstrip(".") if "." in filename else ""
-    return ext
-
 
 # ---- Upload (multipart — unchanged, file upload requires form-data) ----
 
@@ -45,46 +35,8 @@ async def upload_document(
     File is parsed, chunked, embedded, and stored in pgvector.
     Supported: PDF, DOCX, TXT, MD
     """
-    file_type = _get_file_type(file.filename)
-    if file_type not in SUPPORTED_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {file_type}. Supported: {', '.join(SUPPORTED_TYPES)}",
-        )
-
-    file_bytes = await file.read()
-    if not file_bytes:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    # Dedup by SHA-256
-    content_hash = hashlib.sha256(file_bytes).hexdigest()
-    existing = await db.execute(
-        select(Document).where(Document.content_hash == content_hash)
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="This document has already been uploaded.")
-
-    doc = Document(
-        id=str(uuid4()),
-        filename=file.filename,
-        file_type=file_type,
-        file_size=len(file_bytes),
-        content_hash=content_hash,
-        status="processing",
-    )
-    db.add(doc)
-    await db.flush()
-
-    try:
-        chunk_count = await index_document(db, doc.id, file_bytes, file_type, file.filename)
-        await db.commit()
-    except Exception as e:
-        doc.status = "error"
-        await db.commit()
-        raise HTTPException(status_code=500, detail=f"Document indexing failed: {str(e)}")
-
-    result = await db.execute(select(Document).where(Document.id == doc.id))
-    return result.scalar_one()
+    doc = await upload_and_index_document(file, db, source="user")
+    return doc
 
 
 # ---- List (POST body) ----
