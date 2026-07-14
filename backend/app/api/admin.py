@@ -80,7 +80,19 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
 _PROVIDER_META = {
     "qwen": {
         "name": "通义千问 (DashScope)",
-        "models": ["qwen-plus", "qwen-turbo", "qwen-max", "qwen-vl-plus", "qwen-vl-max"],
+        "models": [
+            "qwen-flash",          # 最快最便宜，免费额度最充足
+            "qwen-plus",           # 性价比均衡（你的额度已用完）
+            "qwen-turbo",          # 轻量快速
+            "qwen-max",            # 最强推理
+            "qwen-plus-latest",    # 自动使用最新 plus
+            "qwen3.7-plus",        # 最新 3.7 系列
+            "qwen3.6-flash",       # 3.6 快速版
+            "qwen3.5-flash",       # 3.5 快速版（独立免费额度）
+            "qwen3.5-plus",        # 3.5 plus
+            "qwen-vl-plus",        # 视觉模型
+            "qwen-vl-max",         # 视觉最强
+        ],
     },
     "openai": {
         "name": "OpenAI",
