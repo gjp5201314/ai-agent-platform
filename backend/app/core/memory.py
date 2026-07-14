@@ -19,13 +19,11 @@ _init_attempted = False
 
 
 def _get_client():
-    """Get or lazily create the Mem0 memory client."""
+    """Get or lazily create the Mem0 memory client. Retries once after failure."""
     global _memory_client, _init_attempted
 
     if _memory_client is not None:
         return _memory_client
-    if _init_attempted:
-        return None  # Already tried and failed — don't spam retries
 
     _init_attempted = True
     api_key = settings.dashscope_api_key
