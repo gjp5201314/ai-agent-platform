@@ -4,7 +4,7 @@ Enterprise security: all operations are POST with JSON body.
 """
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -272,7 +272,7 @@ async def upload_admin_document(
 
 
 @router.post("/rag/delete")
-async def delete_admin_document(doc_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_admin_document(doc_id: str = Body(..., embed=True), db: AsyncSession = Depends(get_db)):
     """Delete an admin document."""
     result = await db.execute(
         select(Document).where(Document.id == doc_id, Document.source == "admin")
