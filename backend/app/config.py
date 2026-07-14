@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Qwen / DashScope (OpenAI-compatible)
     dashscope_api_key: str = ""
     dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    qwen_model: str = "qwen-plus"
+    qwen_model: str = "qwen3.7-plus"
     qwen_vision_model: str = "qwen-vl-plus"  # multimodal model for image input
 
     # File upload

@@ -333,6 +333,20 @@ function RagPanel({ documents, onRefresh }: { documents: any[]; onRefresh: () =>
    LLM Panel
    ================================================================ */
 function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  const switchModel = async (provider: string, model: string) => {
+    setSwitching(model);
+    try {
+      await api.adminLlmUpdate(provider, { model });
+      alert(`已切换到 ${model}，立即生效！`);
+      setTimeout(() => window.location.reload(), 500);
+    } catch {
+      alert(`切换失败: ${model}`);
+    }
+    setSwitching(null);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -377,19 +391,25 @@ function LlmPanel({ llmConfig }: { llmConfig: LLMConfig }) {
             <ConfigRow label="可用模型数" value={`${p.models.length} 个`} />
           </div>
 
-          {/* Model tags */}
+          {/* Model tags — click to switch */}
           {p.enabled && (
             <div className="mt-5 pt-4 border-t border-gray-100">
-              <div className="text-[11px] text-gray-400 font-medium mb-2">可用模型</div>
+              <div className="text-[11px] text-gray-400 font-medium mb-2">可用模型（点击切换）</div>
               <div className="flex flex-wrap gap-2">
                 {p.models.map((m) => (
-                  <span key={m} className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                    m === p.default_model
-                      ? "bg-ds-50 text-ds-600 border border-ds-200"
-                      : "bg-gray-50 text-gray-500 border border-gray-200"
-                  }`}>
-                    {m}{m === p.default_model ? " (默认)" : ""}
-                  </span>
+                  <button
+                    key={m}
+                    onClick={() => switchModel(p.id, m)}
+                    disabled={switching !== null}
+                    className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                      switching !== null ? "cursor-wait opacity-50" : "cursor-pointer hover:opacity-80"
+                    } ${
+                      m === p.default_model
+                        ? "bg-ds-50 text-ds-600 border border-ds-200"
+                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
+                    }`}>
+                    {switching === m ? `${m} (切换中...)` : m}{m === p.default_model && switching !== m ? " (默认)" : ""}
+                  </button>
                 ))}
               </div>
             </div>

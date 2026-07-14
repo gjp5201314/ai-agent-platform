@@ -140,20 +140,59 @@ async def list_llm_config():
 async def update_llm_config(request: LLMConfigUpdate):
     """
     Update LLM provider configuration.
-    Note: In production, this should persist to DB. Currently updates in-memory.
-    A server restart is recommended after API key changes.
+    Changes are applied immediately (in-memory) for the running process.
+    Note: a deployment (docker stack deploy) will reset to .env defaults.
     """
     # Validate provider
     if request.provider not in _PROVIDER_META:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
 
-    # Validate API key format
-    if request.api_key is not None and len(request.api_key) < 8:
-        raise HTTPException(status_code=400, detail="API key too short")
+    # Apply provider change
+    settings.llm_provider = request.provider
+
+    # Apply model change
+    if request.model:
+        if request.model not in _PROVIDER_META[request.provider]["models"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown model '{request.model}' for provider '{request.provider}'"
+            )
+        if request.provider == "qwen":
+            settings.qwen_model = request.model
+        elif request.provider == "openai":
+            settings.openai_model = request.model
+        elif request.provider == "claude":
+            settings.anthropic_model = request.model
+
+    # Apply API key / base URL
+    if request.api_key:
+        if request.provider == "qwen":
+            settings.dashscope_api_key = request.api_key
+        elif request.provider == "openai":
+            settings.openai_api_key = request.api_key
+        elif request.provider == "claude":
+            settings.anthropic_api_key = request.api_key
+
+    if request.base_url:
+        if request.provider == "qwen":
+            settings.dashscope_base_url = request.base_url
+        elif request.provider == "openai":
+            settings.openai_base_url = request.base_url
+
+    # Clear LLM cache so new config is picked up
+    from app.agent.llm import _llm_cache
+    _llm_cache.clear()
+
+    current_model = (
+        settings.qwen_model if request.provider == "qwen"
+        else settings.openai_model if request.provider == "openai"
+        else settings.anthropic_model
+    )
 
     return {
-        "detail": "Provider updated. Restart required for env-level changes to take effect.",
+        "detail": "Provider updated and active immediately.",
         "provider": request.provider,
+        "model": current_model,
         "api_key_set": bool(request.api_key),
     }
 
