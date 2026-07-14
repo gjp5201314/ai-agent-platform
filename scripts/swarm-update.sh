@@ -70,6 +70,14 @@ echo_info "拉取 frontend:${IMAGE_TAG}..."
 docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
 
 # ============================================================
+# 2.5 同步 compose 配置（replicas/healthcheck/env 等非镜像变更）
+# ============================================================
+echo_info "同步 Stack 配置..."
+export ACR_REGISTRY IMAGE_TAG
+docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}" --resolve-image never 2>/dev/null || true
+docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
+
+# ============================================================
 # 3. 滚动更新 backend（零停机）
 # ============================================================
 echo_info "========================================="

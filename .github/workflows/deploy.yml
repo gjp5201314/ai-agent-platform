@@ -91,57 +91,78 @@ jobs:
           sshpass -e scp -P "$PORT" docker-compose.prod.yml "$USER@$HOST:~/ai-agent-platform/"
           sshpass -e scp -P "$PORT" -r scripts/ "$USER@$HOST:~/ai-agent-platform/"
 
-          echo ">>> SSH 执行部署..."
-          sshpass -e ssh -p "$PORT" "$USER@$HOST" bash -s << 'ENDSCRIPT'
+          echo ">>> SSH 执行部署 (IMAGE_TAG=$IMAGE_TAG)..."
+          # ★ 关键修复: 把 IMAGE_TAG 显式传给远端 bash，SSH 不会自动转发环境变量
+          sshpass -e ssh -p "$PORT" "$USER@$HOST" \
+            "IMAGE_TAG=${IMAGE_TAG} bash -s" << 'ENDSCRIPT'
             set -e
             cd ~/ai-agent-platform
 
-            IMAGE_TAG="${IMAGE_TAG:-latest}"
             STACK_NAME="${STACK_NAME:-ai-agent}"
 
-            # 加载环境变量 — 不用 source（在 SSH HEREDOC 里可能挂住）
-            # 直接 grep 需要的变量并 export
+            # 加载服务器端 .env（ACR 凭证等）
             if [ -f "backend/.env" ]; then
               while IFS='=' read -r key value; do
-                # 跳过注释和空行
                 case "$key" in \#*|"") continue; esac
-                # 去掉 value 两边的引号
                 value="${value%\"}"; value="${value#\"}"
                 value="${value%\'}"; value="${value#\'}"
                 export "$key"="$value"
               done < backend/.env
-              echo ">>> 已加载 backend/.env: LLM_PROVIDER=${LLM_PROVIDER}, DASHSCOPE_KEY_LEN=${#DASHSCOPE_API_KEY}"
-            else
-              echo ">>> 未找到 backend/.env，使用 CI 环境变量"
+              echo ">>> 已加载 backend/.env"
             fi
 
-            # 登录 ACR（提取纯域名）
-            echo ">>> 登录 ACR..."
-            echo "${ACR_PASSWORD:-$SSHPASS}" | docker login \
-              --username="${ACR_USERNAME}" \
-              --password-stdin \
-              "${ACR_REGISTRY%%/*}" 2>/dev/null || true
+            echo ">>> IMAGE_TAG=${IMAGE_TAG}"
+            echo ">>> ACR_REGISTRY=${ACR_REGISTRY}"
 
+            # 登录 ACR（从服务器 .env 读取凭证）
+            if [ -n "${ACR_PASSWORD}" ] && [ -n "${ACR_REGISTRY}" ]; then
+              echo ">>> 登录 ACR..."
+              echo "${ACR_PASSWORD}" | docker login \
+                --username="${ACR_USERNAME}" \
+                --password-stdin \
+                "${ACR_REGISTRY%%/*}"
+            else
+              echo ">>> ACR 凭证未配置，跳过登录"
+            fi
+
+            # 拉取指定 SHA 镜像（不是 latest！）
             echo ">>> 拉取 backend:${IMAGE_TAG}"
             docker pull "${ACR_REGISTRY}/backend:${IMAGE_TAG}"
 
             echo ">>> 拉取 frontend:${IMAGE_TAG}"
             docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
 
-            # 直接用 stack deploy — config 变更（workers/replicas/healthcheck）也会被应用
-            echo ">>> 更新 Stack（replicas=1 / stop-first）..."
+            # ★ 两步部署:
+            #   Step 1: docker stack deploy — 首次部署 + 应用 compose 变更（config/replicas/healthcheck）
+            #   Step 2: docker service update --image — 强制指向 SHA tag（解决 latest 不更新的问题）
+            echo ">>> 同步 Stack 配置..."
             export ACR_REGISTRY IMAGE_TAG
-            docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}"
+            docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}" --resolve-image never 2>/dev/null || \
+              docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}"
+
+            echo ">>> 更新 backend → ${ACR_REGISTRY}/backend:${IMAGE_TAG}"
+            docker service update \
+              --image "${ACR_REGISTRY}/backend:${IMAGE_TAG}" \
+              --update-order start-first \
+              --update-failure-action rollback \
+              --update-monitor 20s \
+              "${STACK_NAME}_backend" 2>/dev/null || echo ">>> (首次部署跳过 backend update)"
+
+            echo ">>> 更新 frontend → ${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
+            docker service update \
+              --image "${ACR_REGISTRY}/frontend:${IMAGE_TAG}" \
+              --update-order start-first \
+              --update-failure-action rollback \
+              "${STACK_NAME}_frontend" 2>/dev/null || echo ">>> (首次部署跳过 frontend update)"
 
             # 等待 backend 就绪
             echo ">>> 等待 backend 健康检查..."
             for i in $(seq 1 30); do
-              TASKS=$(docker service ps "${STACK_NAME}_backend" --no-trunc --format '{{.CurrentState}}' 2>/dev/null | head -3 | tr '\n' '|')
               if curl -sf -X POST http://localhost:8000/api/v1/health > /dev/null 2>&1; then
                 echo ">>> backend 就绪！(${i}/30)"
                 break
               fi
-              echo ">>> [$i/30] $TASKS"
+              echo ">>> [$i/30] 等待中..."
               sleep 5
             done
 
