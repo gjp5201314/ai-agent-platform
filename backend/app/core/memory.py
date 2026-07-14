@@ -73,7 +73,8 @@ async def search_memories(query: str, user_id: str, limit: int = 5) -> list[dict
     if client is None:
         return []
     try:
-        results = client.search(query, user_id=user_id, limit=limit)
+        # Mem0 v0.x uses filters dict instead of user_id kwarg
+        results = client.search(query, filters={"user_id": user_id}, limit=limit)
         return results.get("results", []) if isinstance(results, dict) else []
     except Exception as e:
         logger.warning(f"Mem0 search error: {e}")
