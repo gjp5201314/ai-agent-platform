@@ -9,6 +9,7 @@
 # 服务:
 #   - postgres  : PostgreSQL 16 + pgvector (向量数据库, replicas=1)
 #   - redis     : Redis 7 (缓存, replicas=1)
+#   - sandbox   : DifySandbox (安全代码执行, replicas=1)
 #   - backend   : FastAPI + LangGraph (replicas=2, 滚动更新)
 #   - frontend  : React + nginx (replicas=1)
 # ============================================================
@@ -55,6 +56,29 @@ services:
       restart_policy:
         condition: on-failure
 
+  # ---- Sandbox (DifySandbox - secure code execution) ----
+  sandbox:
+    image: langgenius/dify-sandbox:0.2.12
+    environment:
+      API_KEY: ${DIFYSANDBOX_API_KEY:-dify-sandbox}
+      SANDBOX_PORT: "8194"
+      WORKER_TIMEOUT: "15"
+      MAX_WORKERS: "4"
+      MAX_REQUESTS: "20"
+      ENABLE_NETWORK: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8194/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+
   # ---- Backend (FastAPI + LangGraph) ----
   # Swarm 模式下由内建 DNS 自动对 replicas 做 round-robin 负载均衡
   backend:
@@ -69,6 +93,8 @@ services:
       APP_DEBUG: "false"
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-agent}:${POSTGRES_PASSWORD:-changeme_strong_password}@postgres:5432/${POSTGRES_DB:-aiagent}"
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      DIFYSANDBOX_URL: http://sandbox:8194
+      DIFYSANDBOX_API_KEY: ${DIFYSANDBOX_API_KEY:-dify-sandbox}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}

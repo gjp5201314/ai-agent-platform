@@ -20,6 +20,7 @@ interface Props {
   onOpenSettings: () => void;
   onOpenAdmin: () => void;
   onClose?: () => void;
+  sandboxOnline?: boolean | null;
 }
 
 export function Sidebar({
@@ -35,6 +36,7 @@ export function Sidebar({
   onOpenSettings,
   onOpenAdmin,
   onClose,
+  sandboxOnline,
 }: Props) {
   const [search, setSearch] = useState("");
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
@@ -215,6 +217,20 @@ export function Sidebar({
           <SlidersHorizontal size={16} />
           管理后台
         </Button>
+
+        {/* Sandbox status indicator */}
+        {sandboxOnline !== null && (
+          <div className="flex items-center gap-2 px-3 py-2">
+            <span
+              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                sandboxOnline ? "bg-emerald-400" : "bg-red-400"
+              }`}
+            />
+            <span className="text-[10px] text-gray-400">
+              {sandboxOnline ? "沙盒运行中" : "沙盒离线"}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

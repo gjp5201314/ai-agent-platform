@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.database import init_db
 from app.core.redis_client import get_redis, close_redis
+from app.core.sandbox import close_sandbox_client
 
 # Apply LangSmith tracing settings to environment before any LangChain import.
 if settings.langsmith_tracing and settings.langsmith_api_key:
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # ---- Shutdown ----
+    await close_sandbox_client()
     await close_redis()
     logger.info("Connections closed.")
 
@@ -117,7 +119,7 @@ app.add_middleware(
 )
 
 # Register routers under API version prefix
-from app.api import chat, rag, conversations, agents, health, admin  # noqa: E402
+from app.api import chat, rag, conversations, agents, health, admin, sandbox  # noqa: E402
 
 API_V1 = "/api/v1"
 
@@ -127,6 +129,7 @@ app.include_router(rag.router, prefix=f"{API_V1}/rag", tags=["rag"])
 app.include_router(conversations.router, prefix=f"{API_V1}/conversations", tags=["conversations"])
 app.include_router(agents.router, prefix=f"{API_V1}/agents", tags=["agents"])
 app.include_router(admin.router, prefix=f"{API_V1}/admin", tags=["admin"])
+app.include_router(sandbox.router, prefix=f"{API_V1}/sandbox", tags=["sandbox"])
 
 # Serve uploaded files through a controlled endpoint (not raw StaticFiles)
 os.makedirs(settings.upload_dir, exist_ok=True)
@@ -154,14 +157,17 @@ async def _seed_default_agent():
                     "你可以：\n"
                     "1. 回答用户的问题\n"
                     "2. 当需要查询上传的文档时，调用 search_knowledge_base 工具搜索知识库\n"
-                    "3. 调用其他工具完成复杂任务（网络搜索、天气查询、新闻、汇率、IP查询等）\n"
+                    "3. 调用 run_python_code 在安全沙箱中执行 Python 代码（数据分析、计算、绘图等）\n"
+                    "4. 调用 run_javascript_code / run_shell_command 执行 JS 或 Shell 命令\n"
+                    "5. 调用 install_python_packages 安装需要的 Python 库\n"
+                    "6. 调用其他工具完成复杂任务（网络搜索、天气查询、新闻、汇率、IP查询等）\n"
                     "注意：只有用户的问题明确涉及已上传的文档内容时，才调用 search_knowledge_base。\n"
                     "对于一般知识问题，直接用你的知识回答即可。\n"
                     "不要声称自己没有记忆能力。请用清晰、专业的中文回答。"
                 ),
                 temperature=0.7,
                 max_tokens=4096,
-                enabled_tools=["search_knowledge_base", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke", "delegate_to_agent", "dispatch_tasks"],
+                enabled_tools=["search_knowledge_base", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke", "run_python_code", "run_javascript_code", "run_shell_command", "install_python_packages", "delegate_to_agent", "dispatch_tasks"],
                 is_default=True,
                 allow_delegation=True,
             )

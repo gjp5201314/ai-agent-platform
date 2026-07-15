@@ -196,6 +196,30 @@ export const api = {
 
   healthCheck: () => fetchJSON<any>(`${API_BASE}/health`),
 
+  // ---- Sandbox ----
+
+  sandboxHealth: () =>
+    fetchJSON<{ status: string; reachable: boolean; latency_ms: number; error?: string }>(`${API_BASE}/sandbox/health`),
+
+  sandboxStats: () =>
+    fetchJSON<{
+      health: { reachable: boolean; latency_ms: number };
+      dependencies: { count: number; packages: string[] };
+      files: { count: number; names: string[] };
+    }>(`${API_BASE}/sandbox/stats`),
+
+  sandboxRun: (code: string, language?: string) =>
+    fetchJSON<{ success: boolean; stdout: string; stderr: string; exit_code: number; elapsed_ms: number }>(
+      `${API_BASE}/sandbox/run`,
+      { code, language: language || "python3" }
+    ),
+
+  sandboxListDeps: () =>
+    fetchJSON<{ packages: string[]; count: number }>(`${API_BASE}/sandbox/dependencies/list`),
+
+  sandboxInstallDeps: (packages: string[]) =>
+    fetchJSON<{ message: string; requested: string[] }>(`${API_BASE}/sandbox/dependencies/install`, { packages }),
+
   // ---- Admin ----
 
   adminDashboard: () => fetchJSON<any>(`${API_BASE}/admin/dashboard`),

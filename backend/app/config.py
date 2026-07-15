@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     tool_timeout_seconds: int = 30          # Max seconds per tool call (network tools)
     delegate_max_depth: int = 3             # Max recursion depth for agent delegation
 
+    # ---- DifySandbox (secure code execution) ----
+    difysandbox_url: str = "http://sandbox:8194"  # DifySandbox API URL
+    difysandbox_api_key: str = "dify-sandbox"     # API key for DifySandbox auth
+    sandbox_timeout_seconds: int = 30             # Default code execution timeout
+    sandbox_max_retries: int = 3                  # Retry count for transient errors
+    sandbox_max_code_length: int = 50_000         # Max source code length (chars)
+    sandbox_preinstall_packages: bool = True      # Pre-install numpy/pandas/matplotlib on startup
+
     # ---- Multi-Agent Orchestration ----
     # When enabled, the supervisor can dispatch tasks to multiple sub-agents
     # in parallel. Each sub-agent runs its own full graph loop (agent → tools → agent).

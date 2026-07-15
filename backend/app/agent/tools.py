@@ -403,6 +403,10 @@ TOOL_GROUPS = {
         "description": "讲个笑话、讲笑话、程序员幽默、娱乐放松、段子",
         "tools": ["tell_joke"],
     },
+    "code_exec": {
+        "description": "执行代码、运行Python、写脚本、数据分析、画图绘图、计算处理、编程、写程序、运行JS、JavaScript、Node.js、shell命令、bash、终端命令、安装pip包、安装python库",
+        "tools": ["run_python_code", "run_javascript_code", "run_shell_command", "install_python_packages"],
+    },
 }
 
 
@@ -496,6 +500,173 @@ def get_relevant_tools(
     return tools, selected_groups
 
 
+# ---- Code Sandbox (DifySandbox) ----
+
+@tool
+async def run_python_code(code: str) -> str:
+    """
+    Execute Python code in a secure sandboxed environment and return the output.
+    Use this when the user asks you to write and run Python code (data analysis,
+    calculations, file processing, plotting, etc.).
+
+    The sandbox has NO network access and a 30-second timeout.
+    Long-running or network-heavy code will fail.
+    Common packages (numpy, pandas, matplotlib) are pre-installed.
+    Use install_python_packages first if you need other libraries.
+
+    For plotting: use matplotlib and save to 'output.png', the result file will
+    be accessible.
+
+    Args:
+        code: The Python source code to execute. Must be complete and self-contained.
+
+    Returns:
+        The stdout/stderr from the executed code, or an error message.
+    """
+    from app.core.sandbox import get_sandbox_client, validate_sandbox_code
+
+    # Pre-flight validation
+    is_safe, err_msg = validate_sandbox_code(code)
+    if not is_safe:
+        return f"代码安全校验未通过: {err_msg}"
+
+    try:
+        client = get_sandbox_client()
+        result = await client.run_code(code)
+
+        if result.error and not result.stdout and not result.stderr:
+            return f"沙箱执行失败: {result.error}"
+
+        parts = []
+        if result.stdout.strip():
+            parts.append(f"[stdout]\n{result.stdout.strip()}")
+        if result.stderr.strip():
+            parts.append(f"[stderr]\n{result.stderr.strip()}")
+        if result.error:
+            parts.append(f"[error] exit_code={result.exit_code}\n{result.error.strip()}")
+        if not parts:
+            return "(no output)"
+
+        footer = f"\n\n⏱ {result.elapsed_ms:.0f}ms | exit_code={result.exit_code}"
+        return "\n\n".join(parts) + footer
+    except Exception as e:
+        return f"沙箱调用异常: {str(e)[:300]}"
+
+
+@tool
+async def run_javascript_code(code: str) -> str:
+    """
+    Execute JavaScript (Node.js) code in a secure sandboxed environment.
+    Use this when the user asks you to write and run JavaScript code.
+
+    The sandbox has NO network access and a 15-second timeout.
+    Use console.log() for output.
+
+    Args:
+        code: The JavaScript source code to execute.
+
+    Returns:
+        The stdout/stderr from the executed code, or an error message.
+    """
+    from app.core.sandbox import get_sandbox_client, SandboxLanguage
+
+    try:
+        client = get_sandbox_client()
+        result = await client.run_code(code, language=SandboxLanguage.JAVASCRIPT)
+
+        if result.error and not result.stdout and not result.stderr:
+            return f"JavaScript 沙箱执行失败: {result.error}"
+
+        parts = []
+        if result.stdout.strip():
+            parts.append(f"[stdout]\n{result.stdout.strip()}")
+        if result.stderr.strip():
+            parts.append(f"[stderr]\n{result.stderr.strip()}")
+        if result.error:
+            parts.append(f"[error] exit_code={result.exit_code}\n{result.error.strip()}")
+        if not parts:
+            return "(no output)"
+
+        footer = f"\n\n⏱ {result.elapsed_ms:.0f}ms | exit_code={result.exit_code}"
+        return "\n\n".join(parts) + footer
+    except Exception as e:
+        return f"JavaScript 沙箱异常: {str(e)[:300]}"
+
+
+@tool
+async def run_shell_command(command: str) -> str:
+    """
+    Execute a bash shell command in the secure sandbox.
+    Use sparingly — prefer run_python_code or run_javascript_code for script tasks.
+    Useful for: file listing, text processing, package checks.
+
+    The sandbox has NO network access and a 10-second timeout.
+
+    Args:
+        command: The shell command to execute, e.g. "ls -la" or "cat file.txt"
+
+    Returns:
+        The stdout/stderr from the command, or an error message.
+    """
+    from app.core.sandbox import get_sandbox_client, SandboxLanguage
+
+    try:
+        client = get_sandbox_client()
+        result = await client.run_code(
+            command,
+            language=SandboxLanguage.BASH,
+            timeout=10.0,
+        )
+
+        if result.error and not result.stdout and not result.stderr:
+            return f"Shell 执行失败: {result.error}"
+
+        parts = []
+        if result.stdout.strip():
+            parts.append(result.stdout.strip())
+        if result.stderr.strip():
+            parts.append(f"[stderr]\n{result.stderr.strip()}")
+        if result.error:
+            parts.append(f"[error] exit_code={result.exit_code}\n{result.error.strip()}")
+        if not parts:
+            return "(no output)"
+
+        return "\n\n".join(parts)
+    except Exception as e:
+        return f"Shell 执行异常: {str(e)[:300]}"
+
+
+@tool
+async def install_python_packages(packages: str) -> str:
+    """
+    Install Python packages in the sandbox via pip.
+    Use this BEFORE run_python_code if your code needs libraries not in the
+    standard library. Common packages (numpy, pandas, matplotlib) may already
+    be installed.
+
+    Args:
+        packages: Space-separated package names, e.g. "requests beautifulsoup4"
+                  or with versions: "numpy==1.24 pandas>=2.0"
+
+    Returns:
+        Installation result message.
+    """
+    from app.core.sandbox import get_sandbox_client
+
+    pkg_list = [p.strip() for p in packages.split() if p.strip()]
+    if not pkg_list:
+        return "请提供要安装的包名，例如: install_python_packages('numpy pandas')"
+
+    if len(pkg_list) > 10:
+        return "一次最多安装 10 个包，请分批安装。"
+
+    try:
+        client = get_sandbox_client()
+        return await client.install_dependencies(pkg_list)
+    except Exception as e:
+        return f"包安装异常: {str(e)[:300]}"
+
+
 # ---- Tool registry ----
 
 ALL_TOOLS = {
@@ -508,6 +679,10 @@ ALL_TOOLS = {
     "exchange_rate": exchange_rate,
     "fetch_url": fetch_url,
     "tell_joke": tell_joke,
+    "run_python_code": run_python_code,
+    "run_javascript_code": run_javascript_code,
+    "run_shell_command": run_shell_command,
+    "install_python_packages": install_python_packages,
 }
 
 

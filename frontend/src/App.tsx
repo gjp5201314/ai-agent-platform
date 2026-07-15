@@ -34,6 +34,7 @@ function ChatLayout() {
   const [useRag, setUseRag] = useState(true);
   const [modelProvider, setModelProvider] = useState<string | null>(null);
   const [availableProviders, setAvailableProviders] = useState<any[]>([]);
+  const [sandboxOnline, setSandboxOnline] = useState<boolean | null>(null); // null=checking, true=online, false=offline
 
   const {
     messages,
@@ -93,6 +94,8 @@ function ChatLayout() {
     loadConversations();
     loadAgents();
     api.adminModels().then((r) => setAvailableProviders(r.providers)).catch(() => {});
+    // Check sandbox health (non-blocking)
+    api.sandboxHealth().then((h) => setSandboxOnline(h.reachable)).catch(() => setSandboxOnline(false));
   }, [loadConversations, loadAgents]);
 
   const handleCloseSettings = useCallback(() => {
@@ -161,6 +164,7 @@ function ChatLayout() {
           onOpenDocuments={() => setShowDocuments(true)}
           onOpenSettings={() => setShowSettings(true)}
           onOpenAdmin={() => navigate("/admin/dashboard")}
+          sandboxOnline={sandboxOnline}
         />
       </div>
 
@@ -182,6 +186,7 @@ function ChatLayout() {
               onOpenSettings={() => { setShowSettings(true); setShowSidebar(false); }}
               onOpenAdmin={() => { navigate("/admin/dashboard"); setShowSidebar(false); }}
               onClose={() => setShowSidebar(false)}
+              sandboxOnline={sandboxOnline}
             />
           </div>
         </div>

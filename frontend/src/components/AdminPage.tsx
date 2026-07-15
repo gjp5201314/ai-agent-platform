@@ -27,6 +27,13 @@ interface LLMProvider {
 }
 interface LLMConfig { providers: LLMProvider[]; default_provider: string; active_model: string; }
 
+interface SandboxStatus {
+  reachable: boolean;
+  latency_ms: number;
+  deps_count: number;
+  files_count: number;
+}
+
 type Tab = "dashboard" | "rag" | "llm" | "tech";
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ReactNode; path: string }[] = [
@@ -55,6 +62,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [llmConfig, setLlmConfig] = useState<LLMConfig | null>(null);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus | null>(null);
 
   const loadAll = async () => {
     setLoading(true);
@@ -62,6 +70,18 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
       const [s, l, d] = await Promise.all([api.adminDashboard(), api.adminLlmList(), api.adminRagDocuments()]);
       setStats(s); setLlmConfig(l); setDocuments(d);
     } catch { /* silent */ }
+    // Sandbox health — non-blocking, can fail gracefully
+    try {
+      const ss = await api.sandboxStats();
+      setSandboxStatus({
+        reachable: ss.health.reachable,
+        latency_ms: ss.health.latency_ms,
+        deps_count: ss.dependencies.count,
+        files_count: ss.files.count,
+      });
+    } catch {
+      setSandboxStatus({ reachable: false, latency_ms: 0, deps_count: 0, files_count: 0 });
+    }
     setLoading(false);
   };
   useEffect(() => { loadAll(); }, []);
@@ -134,7 +154,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex-1 overflow-auto p-8">
-          {activeTab === "dashboard" && stats && <Dashboard stats={stats} llmConfig={llmConfig} maxMsg={maxMsg} />}
+          {activeTab === "dashboard" && stats && <Dashboard stats={stats} llmConfig={llmConfig} sandboxStatus={sandboxStatus} maxMsg={maxMsg} />}
           {activeTab === "rag" && <RagPanel documents={documents} onRefresh={loadAll} />}
           {activeTab === "llm" && llmConfig && <LlmPanel llmConfig={llmConfig} />}
           {activeTab === "tech" && <TechPanel />}
@@ -147,7 +167,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
 /* ================================================================
    Dashboard (unchanged)
    ================================================================ */
-function Dashboard({ stats, llmConfig, maxMsg }: { stats: Stats; llmConfig: LLMConfig | null; maxMsg: number }) {
+function Dashboard({ stats, llmConfig, sandboxStatus, maxMsg }: { stats: Stats; llmConfig: LLMConfig | null; sandboxStatus: SandboxStatus | null; maxMsg: number }) {
   const cards = [
     { label: "对话总数", value: stats.total_conversations, sub: `今日 +${stats.conversations_today}`, color: "text-ds-500", bg: "bg-ds-50", icon: "💬" },
     { label: "消息总数", value: stats.total_messages, sub: `今日 +${stats.messages_today}`, color: "text-purple-500", bg: "bg-purple-50", icon: "📨" },
@@ -202,6 +222,56 @@ function Dashboard({ stats, llmConfig, maxMsg }: { stats: Stats; llmConfig: LLMC
               )}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Sandbox 沙盒状态 */}
+      <div>
+        <div className="text-sm font-semibold text-gray-800 mb-4">DifySandbox 代码沙盒</div>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3.5">
+          {/* Sandbox health card */}
+          <div className={`bg-white rounded-xl border p-5 transition-all relative overflow-hidden ${sandboxStatus?.reachable ? "border-gray-200 hover:border-gray-300" : "border-red-200"}`}>
+            <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: sandboxStatus?.reachable ? "linear-gradient(90deg, #10b981, transparent)" : "linear-gradient(90deg, #ef4444, transparent)" }} />
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{ background: sandboxStatus?.reachable ? "#10b981" : "#ef4444" }} />
+                <span className="text-sm font-semibold text-gray-800">沙盒服务</span>
+              </div>
+              <span className={`inline-flex text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                sandboxStatus?.reachable
+                  ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                  : "bg-red-50 text-red-600 border border-red-200"
+              }`}>
+                {sandboxStatus?.reachable ? "运行中" : "不可达"}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 space-y-1">
+              <div>延迟 <span className={sandboxStatus?.reachable ? "text-emerald-600 font-medium" : "text-gray-700"}>
+                {sandboxStatus?.reachable ? `${sandboxStatus.latency_ms} ms` : "—"}
+              </span></div>
+              <div>已安装包 <span className="text-gray-700 font-medium">{sandboxStatus?.deps_count ?? "—"}</span></div>
+              <div>沙盒文件 <span className="text-gray-700 font-medium">{sandboxStatus?.files_count ?? "—"}</span></div>
+            </div>
+          </div>
+
+          {/* Sandbox capability cards */}
+          <SandboxCapCard icon="🐍" title="Python 3" desc="数据分析、计算、绘图" />
+          <SandboxCapCard icon="🟨" title="JavaScript" desc="Node.js 脚本执行" />
+          <SandboxCapCard icon="⬛" title="Bash Shell" desc="终端命令执行" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SandboxCapCard({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-300 transition-all">
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{icon}</span>
+        <div>
+          <div className="text-sm font-semibold text-gray-800">{title}</div>
+          <div className="text-xs text-gray-400 mt-0.5">{desc}</div>
         </div>
       </div>
     </div>
@@ -521,11 +591,12 @@ function TechPanel() {
       ],
     },
     {
-      title: "工具系统", color: "#6b7280", content: "10 个 LangChain Tool 实现 Agent Function Calling。",
+      title: "工具系统", color: "#6b7280", content: "15 个 LangChain Tool 实现 Agent Function Calling，含 DifySandbox 代码沙盒。",
       items: [
-        ["工具列表", "calculator、web_search、get_current_time、get_weather、get_news、search_knowledge_base 等"],
+        ["工具列表", "calculator、web_search、get_weather、get_news、run_python_code、run_javascript_code、run_shell_command、install_python_packages 等 15 个工具"],
+        ["代码沙盒", "DifySandbox 容器隔离执行 Python/JS/Bash，网络禁用、超时控制、依赖按需安装"],
         ["语义路由", "bigram Jaccard 匹配自动选择相关工具组，减少 prompt tokens"],
-        ["安全措施", "calculator 用 Python AST 白名单解析；fetch_url 需加固 SSRF 防护"],
+        ["安全措施", "calculator AST 白名单；沙盒分层禁止 subprocess/os.system；代码预检拦截危险模式"],
       ],
     },
     {
@@ -544,7 +615,7 @@ function TechPanel() {
         ["缓存/限流", "Redis 滑动窗口计数器，按 IP 区分"],
         ["安全加固", "全 POST API + JSON body；安全 Header；10MB 请求体上限；api/v1 版本化"],
         ["前端", "React 18 + Vite + Tailwind CSS 4 + shadcn/ui + react-router-dom"],
-        ["部署", "Docker Compose 4 容器 (frontend nginx + backend uvicorn + postgres + redis)"],
+        ["部署", "Docker Compose 5 容器 (frontend nginx + backend uvicorn + postgres + redis + difysandbox)"],
       ],
     },
   ];
