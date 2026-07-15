@@ -133,13 +133,44 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
     depends_on:
       - backend
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - certs:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+
+  # ---- Certbot (Let's Encrypt auto-cert) ----
+  # Initial cert: run scripts/setup-https.sh on server (one-time)
+  # Renewal: this service renews every 12h via webroot through nginx
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - certs:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: |
+      sh -c '
+      echo ">>> Certbot renewal watcher started (domain=$${DOMAIN})"
+      while true; do
+        if [ -d /etc/letsencrypt/live/$${DOMAIN} ]; then
+          certbot renew --webroot -w /var/www/certbot --quiet --post-hook "echo cert renewed"
+        fi
+        sleep 12h
+      done
+      '
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      CERT_EMAIL: ${CERT_EMAIL:-admin@example.com}
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
   sandbox_deps:
   sandbox_pip_cache:
+  certs:
+  certbot_webroot:

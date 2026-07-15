@@ -113,6 +113,7 @@ jobs:
 
             echo ">>> IMAGE_TAG=${IMAGE_TAG}"
             echo ">>> ACR_REGISTRY=${ACR_REGISTRY}"
+            echo ">>> DOMAIN=${DOMAIN:-未设置}"
 
             # 登录 ACR（从服务器 .env 读取凭证）
             if [ -n "${ACR_PASSWORD}" ] && [ -n "${ACR_REGISTRY}" ]; then
@@ -168,7 +169,10 @@ jobs:
 
             echo ">>> 健康检查验证..."
             curl -sf -X POST http://localhost:8000/api/v1/health && echo ">>> 后端 OK" || echo ">>> 后端健康检查失败"
-            curl -sf http://localhost:80/ && echo ">>> 前端 OK" || echo ">>> 前端健康检查失败"
+            curl -sf http://localhost:80/ && echo ">>> 前端 HTTP OK" || echo ">>> 前端 HTTP 检查失败"
+            if [ -n "${DOMAIN}" ]; then
+              curl -sfk https://localhost/ && echo ">>> 前端 HTTPS OK" || echo ">>> 前端 HTTPS 检查失败（证书可能尚未配置，运行 setup-https.sh）"
+            fi
 
             echo ">>> 当前服务状态:"
             docker service ls --filter "name=${STACK_NAME}"

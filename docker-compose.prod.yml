@@ -144,10 +144,15 @@ services:
     image: ${ACR_REGISTRY}/frontend:${IMAGE_TAG:-latest}
     ports:
       - 80:80
+      - 443:443
     environment:
       BACKEND_URL: http://backend:8000
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - certs:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:80/"]
+      test: ["CMD", "curl", "-sfk", "https://localhost/"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -162,8 +167,38 @@ services:
         condition: on-failure
         max_attempts: 3
 
+  # ---- Certbot (Let's Encrypt auto-cert) ----
+  # Initial cert: run scripts/setup-https.sh on server (one-time)
+  # Renewal: this service renews every 12h via webroot through nginx
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - certs:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: |
+      sh -c '
+      echo ">>> Certbot renewal watcher started (domain=$${DOMAIN})"
+      while true; do
+        if [ -d /etc/letsencrypt/live/$${DOMAIN} ]; then
+          certbot renew --webroot -w /var/www/certbot --quiet --post-hook "echo cert renewed"
+        fi
+        sleep 12h
+      done
+      '
+    environment:
+      DOMAIN: ${DOMAIN}
+      CERT_EMAIL: ${CERT_EMAIL:-admin@example.com}
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+
 volumes:
   postgres_data:
   redis_data:
   sandbox_deps:
   sandbox_pip_cache:
+  certs:
+  certbot_webroot:
