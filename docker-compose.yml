@@ -65,6 +65,14 @@ services:
         pip install --quiet numpy pandas matplotlib 2>/dev/null || true
     expose:
       - "8194"
+    # Seccomp fix: DifySandbox needs SETUID/SETGID for Python code execution.
+    # Without these, code execution fails with "operation not permitted".
+    cap_add:
+      - SETUID
+      - SETGID
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
     volumes:
       - sandbox_deps:/sandbox/dependencies
       - sandbox_pip_cache:/root/.cache/pip

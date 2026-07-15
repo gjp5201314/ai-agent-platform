@@ -70,6 +70,13 @@ services:
     volumes:
       - sandbox_deps:/sandbox/dependencies
       - sandbox_pip_cache:/root/.cache/pip
+    # Seccomp fix: DifySandbox needs SETUID/SETGID for Python code execution
+    cap_add:
+      - SETUID
+      - SETGID
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8194/health"]
       interval: 15s
