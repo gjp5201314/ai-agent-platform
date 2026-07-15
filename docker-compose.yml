@@ -146,7 +146,7 @@ services:
 
   # ---- Certbot (Let's Encrypt auto-cert) ----
   # Initial cert: run scripts/setup-https.sh on server (one-time)
-  # Renewal: this service renews every 12h via webroot through nginx
+  # Renewal: this service renews every 12h
   certbot:
     image: certbot/certbot:latest
     volumes:
@@ -157,7 +157,15 @@ services:
       echo ">>> Certbot renewal watcher started (domain=$${DOMAIN})"
       while true; do
         if [ -d /etc/letsencrypt/live/$${DOMAIN} ]; then
-          certbot renew --webroot -w /var/www/certbot --quiet --post-hook "echo cert renewed"
+          if [ -n "$${DUCKDNS_TOKEN}" ]; then
+            echo ">>> Renew via DNS (DuckDNS)"
+            certbot renew --quiet \
+              --manual-auth-hook "/opt/duckdns-auth.sh auth" \
+              --manual-cleanup-hook "/opt/duckdns-auth.sh cleanup"
+          else
+            echo ">>> Renew via HTTP (webroot)"
+            certbot renew --webroot -w /var/www/certbot --quiet
+          fi
         fi
         sleep 12h
       done
@@ -165,6 +173,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN:-localhost}
       CERT_EMAIL: ${CERT_EMAIL:-admin@example.com}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:-}
     restart: unless-stopped
 
 volumes:

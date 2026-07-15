@@ -169,7 +169,7 @@ services:
 
   # ---- Certbot (Let's Encrypt auto-cert) ----
   # Initial cert: run scripts/setup-https.sh on server (one-time)
-  # Renewal: this service renews every 12h via webroot through nginx
+  # Renewal: this service renews every 12h
   certbot:
     image: certbot/certbot:latest
     volumes:
@@ -177,10 +177,29 @@ services:
       - certbot_webroot:/var/www/certbot
     entrypoint: |
       sh -c '
+      # DuckDNS auth hook (embedded for Swarm)
+      cat > /tmp/duckdns-auth.sh << "AUTH"
+      #!/bin/sh
+      SUBDOMAIN="$${CERTBOT_DOMAIN%%.duckdns.org}"
+      if [ "$$1" = "auth" ]; then
+        curl -sf "https://www.duckdns.org/update?domains=$${SUBDOMAIN}&token=$${DUCKDNS_TOKEN}&txt=$${CERTBOT_VALIDATION}"
+        sleep 60
+      elif [ "$$1" = "cleanup" ]; then
+        curl -sf "https://www.duckdns.org/update?domains=$${SUBDOMAIN}&token=$${DUCKDNS_TOKEN}&txt=removed&clear=true" || true
+      fi
+      AUTH
+      chmod +x /tmp/duckdns-auth.sh
+
       echo ">>> Certbot renewal watcher started (domain=$${DOMAIN})"
       while true; do
         if [ -d /etc/letsencrypt/live/$${DOMAIN} ]; then
-          certbot renew --webroot -w /var/www/certbot --quiet --post-hook "echo cert renewed"
+          if [ -n "$${DUCKDNS_TOKEN}" ]; then
+            certbot renew --quiet \
+              --manual-auth-hook "/tmp/duckdns-auth.sh auth" \
+              --manual-cleanup-hook "/tmp/duckdns-auth.sh cleanup"
+          else
+            certbot renew --webroot -w /var/www/certbot --quiet
+          fi
         fi
         sleep 12h
       done
@@ -188,6 +207,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
       CERT_EMAIL: ${CERT_EMAIL:-admin@example.com}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:-}
     deploy:
       replicas: 1
       placement:
