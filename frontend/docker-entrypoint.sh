@@ -1,52 +1,43 @@
 #!/bin/sh
 set -e
 
-# Generate nginx config from template
-if [ -n "${DOMAIN}" ] && [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
-  # HTTPS mode — cert exists
-  export DOMAIN
-  envsubst '${DOMAIN}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
-  echo ">>> HTTPS enabled for ${DOMAIN}"
-else
-  # HTTP-only fallback — cert not ready yet (run setup-https.sh first)
-  echo ">>> Cert not found, running HTTP-only. Run setup-https.sh on server to enable HTTPS."
-  cat > /etc/nginx/conf.d/default.conf << 'NGINX'
-server {
-    listen 80;
-    server_name _;
-    location / {
-        root /usr/share/nginx/html;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-    location /api/ {
-        proxy_pass http://backend:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_set_header Connection "";
-        chunked_transfer_encoding on;
-        proxy_read_timeout 300s;
-        proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
-        proxy_next_upstream_tries 3;
-        proxy_next_upstream_timeout 10s;
-    }
-    location /uploads/ {
-        proxy_pass http://backend:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_next_upstream error timeout http_502 http_503;
-        proxy_next_upstream_tries 2;
-    }
-    client_max_body_size 50M;
-}
-NGINX
+CERT_DIR="/etc/nginx/ssl"
+SELF_SIGNED_KEY="${CERT_DIR}/privkey.pem"
+SELF_SIGNED_CERT="${CERT_DIR}/fullchain.pem"
+
+# ---- Always generate a self-signed cert as fallback ----
+mkdir -p "${CERT_DIR}"
+if [ ! -f "${SELF_SIGNED_CERT}" ]; then
+  echo ">>> 生成自签证书（IP 模式备用）..."
+  # Get the container's external IP for SAN（optional: pass IP via env）
+  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout "${SELF_SIGNED_KEY}" \
+    -out "${SELF_SIGNED_CERT}" \
+    -subj "/CN=localhost" \
+    -addext "subjectAltName=IP:127.0.0.1,IP:0.0.0.0,DNS:localhost" 2>/dev/null
+  echo ">>> 自签证书已生成（有效期 10 年）"
 fi
 
+# ---- Decide cert paths ----
+CERT_KEY="${SELF_SIGNED_KEY}"
+CERT_CHAIN="${SELF_SIGNED_CERT}"
+CERT_MODE="self-signed"
+
+if [ -n "${DOMAIN}" ] && [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+  CERT_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+  CERT_CHAIN="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+  CERT_MODE="letsencrypt"
+  echo ">>> 使用 Let's Encrypt 证书: ${DOMAIN}"
+else
+  echo ">>> 使用自签证书（浏览器会提示不安全，点击「继续访问」即可）"
+fi
+
+# ---- Generate nginx config ----
+# Substitute CERT_KEY, CERT_CHAIN paths into template
+export CERT_KEY CERT_CHAIN DOMAIN
+envsubst '${CERT_KEY} ${CERT_CHAIN} ${DOMAIN}' \
+  < /etc/nginx/templates/default.conf.template \
+  > /etc/nginx/conf.d/default.conf
+
+echo ">>> nginx 启动 (mode=${CERT_MODE})"
 exec nginx -g 'daemon off;'

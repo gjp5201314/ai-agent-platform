@@ -8,6 +8,11 @@ RUN npm run build
 
 # ==== Stage 2: Serve ====
 FROM nginx:alpine
+
+# openssl: self-signed cert generation (IP-only mode)
+# envsubst: nginx config template substitution
+RUN apk add --no-cache openssl
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # nginx config uses envsubst for ${DOMAIN} substitution
