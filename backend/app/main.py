@@ -137,10 +137,19 @@ app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads"
 
 
 async def _seed_default_agent():
-    """Create default agents if missing (idempotent — uses fixed IDs)."""
+    """Create or update default agents (idempotent — uses fixed IDs)."""
     from sqlalchemy import select, func
     from app.database import async_session_factory
     from app.models import AgentConfig
+
+    DEFAULT_TOOLS = [
+        "search_knowledge_base", "web_search", "calculator",
+        "get_current_time", "get_weather", "get_news", "lookup_ip",
+        "exchange_rate", "fetch_url", "tell_joke",
+        "run_python_code", "run_javascript_code", "run_shell_command",
+        "install_python_packages",
+        "delegate_to_agent", "dispatch_tasks",
+    ]
 
     async with async_session_factory() as db:
         count_result = await db.execute(select(func.count(AgentConfig.id)))
@@ -167,13 +176,25 @@ async def _seed_default_agent():
                 ),
                 temperature=0.7,
                 max_tokens=4096,
-                enabled_tools=["search_knowledge_base", "web_search", "calculator", "get_current_time", "get_weather", "get_news", "lookup_ip", "exchange_rate", "fetch_url", "tell_joke", "run_python_code", "run_javascript_code", "run_shell_command", "install_python_packages", "delegate_to_agent", "dispatch_tasks"],
+                enabled_tools=DEFAULT_TOOLS,
                 is_default=True,
                 allow_delegation=True,
             )
             db.add(default_agent)
             await db.commit()
             logger.info("Default agent created.")
+
+        # ---- Ensure existing default agent has all current tools (idempotent update) ----
+        result = await db.execute(select(AgentConfig).where(AgentConfig.id == "default"))
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing_tools = set(existing.enabled_tools or [])
+            current_tools = set(DEFAULT_TOOLS)
+            if not current_tools.issubset(existing_tools):
+                merged = list(dict.fromkeys(list(existing.enabled_tools or []) + DEFAULT_TOOLS))
+                existing.enabled_tools = merged
+                await db.commit()
+                logger.info(f"Default agent tools updated: {len(merged)} tools now enabled.")
 
         # ---- Ensure the protected RAG-only agent exists (idempotent by fixed ID) ----
         result = await db.execute(select(AgentConfig).where(AgentConfig.id == "rag-assistant"))
