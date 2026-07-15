@@ -62,22 +62,33 @@ services:
     environment:
       API_KEY: ${DIFYSANDBOX_API_KEY:-dify-sandbox}
       SANDBOX_PORT: "8194"
-      WORKER_TIMEOUT: "15"
+      WORKER_TIMEOUT: "30"
       MAX_WORKERS: "4"
-      MAX_REQUESTS: "20"
+      MAX_REQUESTS: "50"
       ENABLE_NETWORK: "false"
+      PIP_CACHE_DIR: /root/.cache/pip
+    volumes:
+      - sandbox_deps:/sandbox/dependencies
+      - sandbox_pip_cache:/root/.cache/pip
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8194/health"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 20s
     deploy:
       replicas: 1
       placement:
         constraints: [node.role == manager]
       restart_policy:
         condition: on-failure
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M
+          cpus: "0.25"
 
   # ---- Backend (FastAPI + LangGraph) ----
   # Swarm 模式下由内建 DNS 自动对 replicas 做 round-robin 负载均衡
@@ -112,7 +123,7 @@ services:
       # 升级到 4GB+ 后可改为 2，配合 workers=2
       replicas: 1
       update_config:
-        order: stop-first    # replicas=1 时端口冲突，必须先停旧再启新（会有 ~10s 短暂中断）
+        order: start-first   # Swarm routing mesh handles port conflict, zero-downtime
         failure_action: rollback
         monitor: 30s
       rollback_config:
@@ -147,3 +158,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  sandbox_deps:
+  sandbox_pip_cache:
