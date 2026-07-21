@@ -43,7 +43,7 @@ export function useChat() {
    * @param attachments - 附件列表
    */
   const sendMessage = useCallback(
-    async (content: string, agentId: string | null, useRag: boolean, modelProvider?: string | null, attachments: Attachment[] = []) => {
+    async (content: string, agentId: string | null, useRag: boolean, modelProvider?: string | null, attachments: Attachment[] = [], mockMode: boolean = false) => {
       // 添加用户消息到列表
       const userMsg: Message = {
         role: "user",
@@ -63,7 +63,7 @@ export function useChat() {
         let receivedSources: Source[] = [];
 
         // 处理SSE流式事件
-        for await (const event of api.streamChat(content, conversationId, agentId, useRag, attachments, modelProvider || undefined)) {
+        for await (const event of api.streamChat(content, conversationId, agentId, useRag, attachments, modelProvider || undefined, mockMode)) {
           switch (event.type) {
             case "conversation_id":
               // 接收到会话ID

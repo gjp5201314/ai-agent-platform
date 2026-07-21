@@ -53,6 +53,18 @@ class ChatRequest(BaseModel):
     use_rag: bool = True
     attachments: List[AttachmentInfo] = Field(default_factory=list, max_length=20)
     model_provider: Optional[str] = Field(None, max_length=32, description="Override LLM provider: qwen/openai/claude")
+    mock_mode: bool = Field(False, description="Enable mock mode — returns simulated responses without calling LLM API")
+
+
+class MockModeStatus(BaseModel):
+    """Mock mode global status."""
+    enabled: bool = False
+    description: str = ""
+
+
+class MockModeToggle(BaseModel):
+    """Toggle mock mode on/off."""
+    enabled: bool = Field(..., description="Enable or disable mock mode")
 
 
 class MessageOut(BaseModel):

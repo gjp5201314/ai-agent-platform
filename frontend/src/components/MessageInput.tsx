@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Square, Database, Paperclip, X, FileText, ChevronDown, Cpu, Check, Settings } from "lucide-react";
+import { Send, Square, Database, Paperclip, X, FileText, ChevronDown, Cpu, Check, Settings, FlaskConical } from "lucide-react";
 import { api } from "../api/client";
 import { uploadFile } from "../lib/upload";
 import { ProgressList, type FileProgress } from "./ProgressBar";
@@ -18,6 +18,8 @@ interface Props {
   modelProvider: string | null;
   onModelProviderChange: (provider: string | null) => void;
   onOpenAdmin: () => void;
+  mockMode: boolean;
+  onToggleMockMode: () => void;
 }
 
 const ALLOWED_TYPES = [
@@ -34,6 +36,7 @@ const PASTE_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", 
 export function MessageInput({
   onSend, onStop, isStreaming, useRag, onToggleRag,
   modelProvider, onModelProviderChange, onOpenAdmin,
+  mockMode, onToggleMockMode,
 }: Props) {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -251,22 +254,40 @@ export function MessageInput({
         )}
 
         <div className="relative">
-          {useRag && (
-            <div className="absolute -top-3 left-3 z-10 flex items-center gap-1.5
-                            px-2.5 py-0.5 rounded-full
-                            bg-emerald-50 border border-emerald-200
-                            text-emerald-600 text-[10px] font-medium">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-              </span>
-              知识库检索已开启
+          {(useRag || mockMode) && (
+            <div className="absolute -top-3 left-3 z-10 flex items-center gap-2">
+              {useRag && (
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full
+                                bg-emerald-50 border border-emerald-200
+                                text-emerald-600 text-[10px] font-medium">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                  </span>
+                  知识库检索已开启
+                </div>
+              )}
+              {mockMode && (
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full
+                                bg-amber-50 border border-amber-200
+                                text-amber-600 text-[10px] font-medium">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+                  </span>
+                  Mock 模式
+                </div>
+              )}
             </div>
           )}
 
           <div className={`relative rounded-xl bg-white border transition-all
-                          ${useRag
+                          ${useRag && !mockMode
                             ? "border-emerald-300 ring-1 ring-emerald-100"
+                            : mockMode && !useRag
+                            ? "border-amber-300 ring-1 ring-amber-100"
+                            : (useRag && mockMode)
+                            ? "border-purple-300 ring-1 ring-purple-100"
                             : "border-gray-200 focus-within:border-ds-400 focus-within:ring-2 focus-within:ring-ds-100"}`}>
             <div className="flex items-end gap-1.5 p-2.5">
               <input
@@ -336,6 +357,26 @@ export function MessageInput({
                   {useRag && (
                     <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full
                                      bg-emerald-500 ring-2 ring-white" />
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onToggleMockMode}
+                  title={mockMode ? "点击关闭 Mock 模式（使用真实 API）" : "点击开启 Mock 模式（无需 API Key 测试）"}
+                  className={`relative gap-1.5 text-xs h-8 transition-all ${
+                    mockMode
+                      ? "text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700"
+                      : "text-gray-400 hover:text-gray-600"
+                  }`}
+                >
+                  <FlaskConical size={14} />
+                  <span className="hidden sm:inline font-medium">Mock</span>
+                  {mockMode && (
+                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full
+                                     bg-amber-500 ring-2 ring-white" />
                   )}
                 </Button>
 

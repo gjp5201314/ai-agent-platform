@@ -29,6 +29,7 @@ from app.models import Conversation, Message, AgentConfig
 from app.schemas import ChatRequest
 from app.deps import get_default_agent, verify_chat_rate_limit
 from app.agent.graph import run_agent
+from app.agent.mock_agent import run_mock_agent
 from app.config import settings
 from app.core.memory import search_memories, add_memories
 from app.core.logger import logger
@@ -446,9 +447,13 @@ async def chat(
 
     conversation_id, langchain_messages, agent_config, use_rag = await _prepare_chat(request, user_id=ip)
 
+    # Determine if mock mode should be used:
+    # Priority: 1) per-request flag, 2) global setting
+    use_mock = request.mock_mode or settings.mock_mode_enabled
+
     if request.stream:
         return StreamingResponse(
-            _stream_response(conversation_id, langchain_messages, agent_config, use_rag, user_id=ip),
+            _stream_response(conversation_id, langchain_messages, agent_config, use_rag, user_id=ip, mock_mode=use_mock),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -460,7 +465,8 @@ async def chat(
         full_response = ""
         sources = []
         async with async_session_factory() as db:
-            async for event in run_agent(langchain_messages, agent_config, use_rag, db):
+            agent_runner = run_mock_agent if use_mock else run_agent
+            async for event in agent_runner(langchain_messages, agent_config, use_rag, db):
                 if event["type"] == "token":
                     full_response += event["content"]
                 elif event["type"] == "rag_context":
@@ -498,7 +504,7 @@ async def chat(
         }
 
 
-async def _stream_response(conversation_id, messages, agent_config, use_rag, user_id="default"):
+async def _stream_response(conversation_id, messages, agent_config, use_rag, user_id="default", mock_mode=False):
     """Generator that yields SSE-formatted events from the agent."""
     yield f"data: {json.dumps({'type': 'conversation_id', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
 
@@ -507,7 +513,8 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag, use
 
     try:
         async with async_session_factory() as agent_db:
-            async for event in run_agent(messages, agent_config, use_rag, agent_db):
+            agent_runner = run_mock_agent if mock_mode else run_agent
+            async for event in agent_runner(messages, agent_config, use_rag, agent_db):
                 if event["type"] == "rag_context":
                     sources = event.get("sources", [])
                     yield f"data: {json.dumps({'type': 'rag_context', 'sources': sources}, ensure_ascii=False)}\n\n"

@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     multi_agent_enabled: bool = True        # 启用多Agent主管模式
     multi_agent_max_parallel: int = 3       # 通过asyncio.gather的最大并发子Agent数
 
+    # ---- Mock模式 ----
+    # 启用后所有LLM调用返回模拟响应，不消耗任何API Key
+    # 可通过环境变量 MOCK_MODE_ENABLED=true 全局开启，或通过前端切换
+    mock_mode_enabled: bool = False
+
     # ---- LangSmith ----
     # LangSmith底层使用LANGCHAIN_*环境变量
     # 我们在这里存储它们，并在main启动时通过os.environ应用

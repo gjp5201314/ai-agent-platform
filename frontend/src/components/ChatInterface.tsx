@@ -9,7 +9,7 @@
  */
 
 import { useMemo } from "react";
-import { Menu, Bot } from "lucide-react";
+import { Menu, Bot, FlaskConical } from "lucide-react";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import type { Message, AgentConfig } from "../types";
@@ -28,6 +28,8 @@ interface Props {
   modelProvider: string | null;            // 当前模型提供商
   onModelProviderChange: (provider: string | null) => void; // 切换模型回调
   onOpenAdmin: () => void;                 // 打开管理后台回调
+  mockMode: boolean;                       // Mock 模式状态
+  onToggleMockMode: () => void;            // 切换 Mock 模式回调
 }
 
 /**
@@ -56,6 +58,8 @@ export function ChatInterface({
   modelProvider,
   onModelProviderChange,
   onOpenAdmin,
+  mockMode,
+  onToggleMockMode,
 }: Props) {
   // 计算上下文窗口使用情况
   const maxTokens = activeAgent?.max_tokens || 4096;
@@ -66,6 +70,17 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full bg-white">
+      {/* ========== Mock 模式提示横幅 ========== */}
+      {mockMode && (
+        <div className="flex-shrink-0 px-4 py-1.5 bg-amber-50 border-b border-amber-200">
+          <div className="max-w-4xl mx-auto flex items-center gap-2 text-xs text-amber-700">
+            <FlaskConical size={14} className="text-amber-500 flex-shrink-0" />
+            <span className="font-medium">Mock 模式已启用</span>
+            <span className="text-amber-500 hidden sm:inline">— 所有回复均为模拟数据，不消耗 API Key</span>
+          </div>
+        </div>
+      )}
+
       {/* ========== 上下文窗口进度条 ========== */}
       {messages.length > 0 && (
         <div className="relative z-10 flex-shrink-0 px-4 pt-3 pb-0">
@@ -126,6 +141,8 @@ export function ChatInterface({
           modelProvider={modelProvider}
           onModelProviderChange={onModelProviderChange}
           onOpenAdmin={onOpenAdmin}
+          mockMode={mockMode}
+          onToggleMockMode={onToggleMockMode}
         />
       </div>
     </div>

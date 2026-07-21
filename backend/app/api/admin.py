@@ -16,6 +16,8 @@ from app.schemas import (
     LLMProviderInfo,
     LLMConfigResponse,
     LLMConfigUpdate,
+    MockModeStatus,
+    MockModeToggle,
 )
 
 router = APIRouter()
@@ -310,3 +312,34 @@ async def admin_rag_stats(db: AsyncSession = Depends(get_db)):
 async def get_public_models():
     """Public endpoint for frontend to list available models."""
     return await list_llm_config()
+
+
+# ---- Mock Mode Management ----
+
+@router.post("/mock/status", response_model=MockModeStatus)
+async def get_mock_status():
+    """Get current mock mode status."""
+    return MockModeStatus(
+        enabled=settings.mock_mode_enabled,
+        description=(
+            "Mock 模式已启用 — 所有对话将返回模拟响应，不消耗 API Key。"
+            if settings.mock_mode_enabled
+            else "Mock 模式已关闭 — 对话将使用真实的 LLM API。"
+        ),
+    )
+
+
+@router.post("/mock/toggle")
+async def toggle_mock_mode(request: MockModeToggle):
+    """
+    Toggle mock mode on/off globally.
+    Changes are applied immediately (in-memory) for the running process.
+    Set MOCK_MODE_ENABLED=true in .env to persist across restarts.
+    """
+    settings.mock_mode_enabled = request.enabled
+    status = "已启用" if request.enabled else "已关闭"
+    return {
+        "detail": f"Mock 模式{status}。"
+        + (" 所有对话将返回模拟响应。" if request.enabled else " 对话将使用真实 LLM API。"),
+        "enabled": request.enabled,
+    }

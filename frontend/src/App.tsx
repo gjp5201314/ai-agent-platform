@@ -71,6 +71,9 @@ function ChatLayout() {
   /** 沙箱服务状态（null=检测中, true=在线, false=离线） */
   const [sandboxOnline, setSandboxOnline] = useState<boolean | null>(null);
 
+  /** Mock 模式开关 */
+  const [mockMode, setMockMode] = useState(false);
+
   // ========== 聊天逻辑Hook ==========
   const {
     messages,           // 消息列表
@@ -183,10 +186,10 @@ function ChatLayout() {
    */
   const handleSend = useCallback(
     (message: string, attachments: Attachment[] = []) => {
-      sendMessage(message, activeAgent?.id || null, useRag, modelProvider, attachments);
+      sendMessage(message, activeAgent?.id || null, useRag, modelProvider, attachments, mockMode);
       setTimeout(loadConversations, 500);
     },
-    [sendMessage, activeAgent, useRag, modelProvider, loadConversations]
+    [sendMessage, activeAgent, useRag, modelProvider, loadConversations, mockMode]
   );
 
   /**
@@ -289,6 +292,8 @@ function ChatLayout() {
           modelProvider={modelProvider}
           onModelProviderChange={setModelProvider}
           onOpenAdmin={() => navigate("/admin/dashboard")}
+          mockMode={mockMode}
+          onToggleMockMode={() => setMockMode(!mockMode)}
         />
       </div>
 

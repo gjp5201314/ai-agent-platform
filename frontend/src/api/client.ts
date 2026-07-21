@@ -68,6 +68,7 @@ export async function* streamChat(
   useRag: boolean,
   attachments: Attachment[] = [],
   modelProvider?: string,
+  mockMode: boolean = false,
 ): AsyncGenerator<SSEEvent> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: "POST",
@@ -80,6 +81,7 @@ export async function* streamChat(
       use_rag: useRag,
       attachments,
       model_provider: modelProvider || null,
+      mock_mode: mockMode,
     }),
   });
 
@@ -330,4 +332,14 @@ export const api = {
   /** 获取管理后台RAG统计信息 */
   adminRagStats: () =>
     fetchJSON<{ document_count: number; chunk_count: number }>(`${API_BASE}/admin/rag/stats`),
+
+  // ========== Mock 模式管理 ==========
+
+  /** 获取 Mock 模式状态 */
+  mockStatus: () =>
+    fetchJSON<{ enabled: boolean; description: string }>(`${API_BASE}/admin/mock/status`),
+
+  /** 切换 Mock 模式 */
+  mockToggle: (enabled: boolean) =>
+    fetchJSON<{ detail: string; enabled: boolean }>(`${API_BASE}/admin/mock/toggle`, { enabled }),
 };
