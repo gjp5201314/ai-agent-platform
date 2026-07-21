@@ -1,6 +1,70 @@
 """
-Custom tools for the LangGraph agent.
-Each tool is a LangChain BaseTool with async support.
+================================================================================
+Agent 工具系统 — 所有可用工具的注册与实现（前端必读）
+================================================================================
+
+工具系统架构概览
+-------------------------------------
+工具(Tool)是 Agent 的"手"——LLM 能思考，但需要通过工具来执行实际操作。
+这个文件实现了完整的工具生命周期：
+
+1. 工具注册表 (ALL_TOOLS)
+   - 将所有可用工具注册在一个字典中，通过名称索引
+   - 前端/管理后台通过 enabled_tools 数组控制 Agent 可使用哪些工具
+
+2. 工具组与语义路由 (TOOL_GROUPS + get_relevant_tools)
+   - 工具按功能分为多个"组"（搜索、金融数学、地理时间、娱乐、代码执行）
+   - 当工具数量多时，根据用户问题意图自动筛选相关工具组
+   - 减少 token 消耗，降低 LLM 的"选择困难"
+
+3. 元工具 (Meta-tools)
+   - search_knowledge_base: 按需搜索知识库（对应前端"知识库搜索"开关）
+   - delegate_to_agent: 委托任务给其他 Agent（对应多 Agent 协作）
+   - dispatch_tasks: 并行分发任务给多个 Agent
+   - 这些工具不受语义路由限制，始终可用
+
+前端关注点：
+  - 工具调用时前端收到 "tool_start" SSE 事件 {type, name, args}
+  - 工具成功/失败的信息由 LLM 转述给用户，不直接展示原始输出
+  - 代码沙箱工具（run_python_code 等）的依赖在服务端安全沙箱中运行
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+工具清单速览表
+-------------------------------------
+┌──────────────────────────┬──────────────────────────────────────────────────┬─────────────────────────────────────┐
+│ 工具名称                   │ 功能描述                                          │ 典型用法                              │
+├──────────────────────────┼──────────────────────────────────────────────────┼─────────────────────────────────────┤
+│ calculator                │ 安全数学表达式求值（加减乘除、幂、取模、括号）        │ "计算 (100-20)/4"                    │
+│ web_search                │ DuckDuckGo 网页搜索（无需 API Key）                 │ "搜索最新的 React 19 更新"            │
+│ get_current_time          │ 获取当前北京时间 (UTC+8)                            │ "现在几点？"                          │
+│ get_weather               │ 查询城市天气（通过 wttr.in 免费 API）                │ "北京今天天气怎么样？"                 │
+│ get_news                  │ 获取微博热搜/当前热门话题                            │ "今天有什么新闻？"                    │
+│ lookup_ip                 │ IP 地址归属地查询（ip-api.com）                     │ "8.8.8.8 是哪里的 IP？"              │
+│ exchange_rate             │ 实时汇率查询（exchangerate-api.com）                │ "1美元等于多少人民币？"               │
+│ fetch_url                 │ 抓取网页文本内容（去除 HTML 标签）                   │ "帮我总结这个网页的内容"               │
+│ tell_joke                 │ 随机程序员笑话                                      │ "讲个笑话"                            │
+│ run_python_code           │ 安全沙箱执行 Python 代码（DifySandbox）             │ "用 Python 画一个饼图"                │
+│ run_javascript_code       │ 安全沙箱执行 JavaScript/Node.js 代码                │ "用 JS 写一个排序算法并运行"           │
+│ run_shell_command         │ 安全沙箱执行 Bash 命令                              │ "列出当前目录文件"                    │
+│ install_python_packages   │ 在沙箱中安装 Python 依赖包（pip）                   │ "安装 requests 库"                    │
+│ search_knowledge_base     │ 【元工具】按需搜索知识库文档（LLM 决定何时调用）      │ 用户问及上传文档中的内容时自动触发      │
+│ delegate_to_agent         │ 【元工具】委托任务给子 Agent（串行）                  │ "让搜索专家帮我查一下"                │
+│ dispatch_tasks            │ 【元工具】并行分发任务给多个子 Agent                  │ "同时让搜索专家和计算专家处理"         │
+└──────────────────────────┴──────────────────────────────────────────────────┴─────────────────────────────────────┘
+
+工具组（用于语义路由）
+-------------------------------------
+┌────────────────┬──────────────────────────────────────┬───────────────────────────────────────────┐
+│ 工具组名称       │ 匹配关键词                             │ 包含的工具                                 │
+├────────────────┼──────────────────────────────────────┼───────────────────────────────────────────┤
+│ search          │ 搜索、查询、URL、新闻、实时信息           │ web_search, fetch_url, get_news           │
+│ finance_math    │ 汇率、货币、计算、数学                    │ exchange_rate, calculator                 │
+│ geo_time        │ 天气、时间、IP、地理位置                  │ get_weather, get_current_time, lookup_ip  │
+│ fun             │ 笑话、幽默、娱乐                        │ tell_joke                                 │
+│ code_exec       │ 代码、Python、JS、Shell、绘图、数据分析   │ run_python_code, run_javascript_code,     │
+│                 │                                       │ run_shell_command, install_python_packages│
+└────────────────┴──────────────────────────────────────┴───────────────────────────────────────────┘
 """
 import ast
 import operator
@@ -18,12 +82,19 @@ from langchain_core.tools import tool
 from app.config import settings
 from app.core.logger import logger
 
-# Track delegation depth per-request (async-safe, thread-safe)
+# ============================================================================
+# 委托深度追踪（异步安全，协程隔离）
+# 使用 contextvars 而非全局变量，确保并发请求的委托深度互不干扰
+# ============================================================================
 _delegate_depth: contextvars.ContextVar[int] = contextvars.ContextVar(
     "delegate_depth", default=0
 )
-# ---- Calculator ----
 
+# ============================================================================
+# 工具 1: calculator — 安全数学计算器
+# ============================================================================
+
+# 安全的 AST 操作符白名单：只允许数学运算，拒绝任意代码执行
 _SAFE_OPS = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -38,7 +109,7 @@ _SAFE_OPS = {
 
 
 def _safe_eval(node):
-    """Recursively evaluate an AST node with a safe set of operators."""
+    """递归计算 AST 节点，仅使用白名单中的操作符，拒绝任意代码执行。"""
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
         return node.value
     if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_OPS:
@@ -68,7 +139,9 @@ def calculator(expression: str) -> str:
         return f"计算错误: {e}. 请检查表达式格式。"
 
 
-# ---- Web Search (DuckDuckGo HTML scraping, no API key needed) ----
+# ============================================================================
+# 工具 2: web_search — 网页搜索（DuckDuckGo，无需 API Key）
+# ============================================================================
 
 @tool
 def web_search(query: str, max_results: int = 5) -> str:
@@ -106,7 +179,9 @@ def web_search(query: str, max_results: int = 5) -> str:
         return f"网络搜索失败: {e}"
 
 
-# ---- Get current time ----
+# ============================================================================
+# 工具 3: get_current_time — 获取北京时间
+# ============================================================================
 
 @tool
 def get_current_time() -> str:
@@ -122,7 +197,9 @@ def get_current_time() -> str:
     return now.strftime("%Y年%m月%d日 %H:%M:%S (北京时间)")
 
 
-# ---- Weather (wttr.in, no API key needed) ----
+# ============================================================================
+# 工具 4: get_weather — 天气查询（wttr.in，无需 API Key）
+# ============================================================================
 
 @tool
 def get_weather(city: str) -> str:
@@ -155,7 +232,7 @@ def get_weather(city: str) -> str:
         if not current:
             return f"未找到 '{city}' 的天气数据，请检查城市名称是否正确。"
 
-        # Get forecast for today
+        # 获取今日天气预报
         weather_info = data.get("weather", [{}])[0]
         today_forecast = weather_info.get("hourly", [{}])
 
@@ -167,7 +244,7 @@ def get_weather(city: str) -> str:
         weather_desc = current.get("weatherDesc", [{}])[0].get("value", "N/A")
         visibility = current.get("visibility", "N/A")
 
-        # Get today's high/low
+        # 获取今日最高/最低温度
         today = weather_info
         max_temp = today.get("maxtempC", "N/A")
         min_temp = today.get("mintempC", "N/A")
@@ -186,7 +263,9 @@ def get_weather(city: str) -> str:
         return f"天气查询失败: {e}"
 
 
-# ---- News Headlines (free public API, no key needed) ----
+# ============================================================================
+# 工具 5: get_news — 获取微博热搜
+# ============================================================================
 
 @tool
 def get_news() -> str:
@@ -221,7 +300,9 @@ def get_news() -> str:
         return f"新闻获取失败: {e}"
 
 
-# ---- IP Location Lookup (free API, no key needed) ----
+# ============================================================================
+# 工具 6: lookup_ip — IP 归属地查询
+# ============================================================================
 
 @tool
 def lookup_ip(ip: str) -> str:
@@ -256,7 +337,9 @@ def lookup_ip(ip: str) -> str:
         return f"IP 查询失败: {e}"
 
 
-# ---- Exchange Rate (free API, no key needed) ----
+# ============================================================================
+# 工具 7: exchange_rate — 实时汇率查询
+# ============================================================================
 
 @tool
 def exchange_rate(from_currency: str = "CNY", to_currency: str = "USD") -> str:
@@ -295,7 +378,9 @@ def exchange_rate(from_currency: str = "CNY", to_currency: str = "USD") -> str:
         return f"汇率查询失败: {e}"
 
 
-# ---- URL Content Fetcher ----
+# ============================================================================
+# 工具 8: fetch_url — 网页内容抓取
+# ============================================================================
 
 @tool
 def fetch_url(url: str, max_chars: int = 3000) -> str:
@@ -325,14 +410,14 @@ def fetch_url(url: str, max_chars: int = 3000) -> str:
 
             html = resp.read().decode("utf-8", errors="replace")
 
-        # Remove script and style blocks
+        # 去除 script 和 style 块
         html = re.sub(r"<script[^>]*>.*?</script>", " ", html, flags=re.DOTALL | re.IGNORECASE)
         html = re.sub(r"<style[^>]*>.*?</style>", " ", html, flags=re.DOTALL | re.IGNORECASE)
 
-        # Remove HTML tags
+        # 去除 HTML 标签
         text = re.sub(r"<[^>]+>", " ", html)
 
-        # Clean up whitespace
+        # 清理特殊字符和空白
         text = re.sub(r"&nbsp;", " ", text)
         text = re.sub(r"&amp;", "&", text)
         text = re.sub(r"&lt;", "<", text)
@@ -351,7 +436,9 @@ def fetch_url(url: str, max_chars: int = 3000) -> str:
         return f"URL 抓取失败: {e}"
 
 
-# ---- Random Jokes ----
+# ============================================================================
+# 工具 9: tell_joke — 随机程序员笑话
+# ============================================================================
 
 _JOKES = [
     "程序员最讨厌的康熙的哪个儿子？——胤禩，因为他是八阿哥（bug）。",
@@ -382,9 +469,13 @@ def tell_joke() -> str:
     return random.choice(_JOKES)
 
 
-# ============================================================
-#  Tool Groups — semantic routing layer
-# ============================================================
+# ============================================================================
+# 工具组定义 — 语义路由层
+# ============================================================================
+# 当启用的工具数量超过阈值时，系统根据用户问题意图自动筛选相关的工具组。
+# 这可以减少发给 LLM 的工具列表长度，降低 token 消耗和"选择困难"。
+# 每个组包含：匹配关键词描述 + 该组包含的工具名称列表
+# ============================================================================
 
 TOOL_GROUPS = {
     "search": {
@@ -412,9 +503,12 @@ TOOL_GROUPS = {
 
 def _bigram_jaccard(text1: str, text2: str) -> float:
     """
-    Character bigram Jaccard similarity.
-    Works for both Chinese (character-level) and English (letter-level).
-    No external dependencies, instant computation.
+    字符级别的 Bigram Jaccard 相似度计算。
+
+    用于语义路由的工具-问题匹配。
+    同时支持中文（字符级）和英文（字母级），无需外部 NLP 依赖，即时计算。
+
+    返回：0.0 ~ 1.0 的相似度分数
     """
     def bigrams(s: str) -> set:
         return {s[i:i+2] for i in range(len(s) - 1)}
@@ -433,27 +527,28 @@ def get_relevant_tools(
     min_tools: int = 6,
 ) -> tuple[list, list]:
     """
-    Semantically filter tools based on user query intent.
+    语义路由：根据用户问题意图筛选相关工具。
 
-    Two-layer funnel:
-      1. Match user query against TOOL_GROUPS descriptions (bigram Jaccard)
-      2. Expand matched groups → only those tools go to the LLM
+    两层漏斗机制：
+      1. 将用户查询与 TOOL_GROUPS 的描述进行 Bigram Jaccard 匹配
+      2. 只把匹配得分最高的 top_k_groups 组发给 LLM
 
-    Meta-tools (delegate_to_agent, rag) always pass through unfiltered.
+    元工具（delegate_to_agent, dispatch_tasks, search_knowledge_base, rag）
+    不受语义路由限制，始终包含在结果中。
 
-    Args:
-        user_query:         The user's latest message text
-        enabled_tool_names: All tool names enabled for this agent
-        top_k_groups:       Max number of tool groups to include
-        min_tools:          Only activate filtering when tool count exceeds this
+    参数：
+        user_query:         用户最新消息文本
+        enabled_tool_names: 所有启用的工具名称
+        top_k_groups:       最多选取的工具组数量
+        min_tools:          工具总数超过此阈值时才启用语义路由
 
-    Returns:
-        (filtered_tool_callables, selected_group_names)
+    返回：
+        (筛选后的工具调用列表, 选中的工具组名称列表)
     """
     if not user_query or len(enabled_tool_names) <= min_tools:
         return get_tools(enabled_tool_names), ["__all__"]
 
-    # Separate meta-tools (always include)
+    # 分离元工具（始终保留）
     meta_names = {"delegate_to_agent", "dispatch_tasks", "search_knowledge_base", "rag"}
     meta_tools = [t for t in enabled_tool_names if t in meta_names]
     regular_tools = [t for t in enabled_tool_names if t not in meta_names]
@@ -461,7 +556,7 @@ def get_relevant_tools(
     if not regular_tools:
         return get_tools(enabled_tool_names), ["__meta_only__"]
 
-    # Score each group against the user query
+    # 计算每个工具组与用户查询的匹配分数
     scored = []
     for group_name, group_info in TOOL_GROUPS.items():
         group_tools = [t for t in group_info["tools"] if t in regular_tools]
@@ -470,10 +565,10 @@ def get_relevant_tools(
         score = _bigram_jaccard(user_query, group_info["description"])
         scored.append((score, group_name, group_tools))
 
-    # Sort by score descending
+    # 按分数降序排列
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # Select top_k_groups (only if score > 0)
+    # 选取 top_k_groups（仅保留分数 > 0 的）
     selected_tool_names = []
     selected_groups = []
     for score, group_name, group_tools in scored[:top_k_groups]:
@@ -481,15 +576,15 @@ def get_relevant_tools(
             selected_tool_names.extend(group_tools)
             selected_groups.append(f"{group_name}({score:.2f})")
 
-    # Fallback: if nothing matched, use all regular tools
+    # 兜底：如果没有任何匹配，使用全部常规工具
     if not selected_tool_names:
         selected_tool_names = regular_tools
         selected_groups = ["__fallback_all__"]
 
-    # Merge: selected + meta-tools, deduplicate
+    # 合并：筛选结果 + 元工具，去重
     all_selected = list(dict.fromkeys(selected_tool_names + meta_tools))
 
-    # Convert names to tool callables
+    # 将工具名称转换为工具调用对象
     tools = [ALL_TOOLS[name] for name in all_selected if name in ALL_TOOLS]
     if "delegate_to_agent" in enabled_tool_names:
         tools.append(delegate_to_agent)
@@ -500,7 +595,15 @@ def get_relevant_tools(
     return tools, selected_groups
 
 
-# ---- Code Sandbox (DifySandbox) ----
+# ============================================================================
+# 代码沙箱工具组 — 在安全隔离环境中执行代码
+# ============================================================================
+# 所有代码执行都在 DifySandbox 安全沙箱中进行：
+# - 无网络访问权限
+# - 超时限制（Python 30s, JS 15s, Shell 10s）
+# - 预设常用库（numpy, pandas, matplotlib）
+# - 可以按需安装额外的 pip 包
+# ============================================================================
 
 @tool
 async def run_python_code(code: str) -> str:
@@ -525,7 +628,7 @@ async def run_python_code(code: str) -> str:
     """
     from app.core.sandbox import get_sandbox_client, validate_sandbox_code
 
-    # Pre-flight validation
+    # 代码安全预检
     is_safe, err_msg = validate_sandbox_code(code)
     if not is_safe:
         return f"代码安全校验未通过: {err_msg}"
@@ -667,7 +770,13 @@ async def install_python_packages(packages: str) -> str:
         return f"包安装异常: {str(e)[:300]}"
 
 
-# ---- Tool registry ----
+# ============================================================================
+# 工具注册表 (ALL_TOOLS)
+# ============================================================================
+# 所有常规工具的统一注册字典。以工具名为键，工具调用对象为值。
+# 注意：search_knowledge_base / delegate_to_agent / dispatch_tasks 是元工具，
+# 不在此注册表中，由 get_tools() 单独处理。
+# ============================================================================
 
 ALL_TOOLS = {
     "calculator": calculator,
@@ -688,9 +797,12 @@ ALL_TOOLS = {
 
 def get_tools(enabled_tool_names: list) -> list:
     """
-    Return the list of tool callables for the given names.
-    'rag' is a legacy pre-process flag (deprecated in favor of search_knowledge_base).
-    'search_knowledge_base' / 'delegate_to_agent' / 'dispatch_tasks' are meta-tools.
+    根据启用的工具名称列表返回对应的工具调用对象列表。
+
+    参数说明：
+    - "rag" 是旧版预处理标记，已废弃（被 search_knowledge_base 取代）
+    - "search_knowledge_base" / "delegate_to_agent" / "dispatch_tasks" 是元工具，
+      不在此注册表中，单独处理
     """
     tools = [ALL_TOOLS[name] for name in enabled_tool_names if name in ALL_TOOLS]
     if "search_knowledge_base" in enabled_tool_names:
@@ -702,7 +814,13 @@ def get_tools(enabled_tool_names: list) -> list:
     return tools
 
 
-# ---- Knowledge Base Search (on-demand, not pre-processing) ----
+# ============================================================================
+# 元工具 1: search_knowledge_base — 按需知识库搜索
+# ============================================================================
+# 与旧版 rag 预处理模式不同，这个工具由 LLM 自行决定何时调用。
+# 当用户问及可能与上传文档相关的问题时，LLM 会主动调用此工具。
+# 前端对应：管理后台"知识库搜索"工具开关
+# ============================================================================
 
 @tool
 async def search_knowledge_base(query: str) -> str:
@@ -745,7 +863,14 @@ async def search_knowledge_base(query: str) -> str:
         return f"知识库搜索失败: {str(e)[:200]}"
 
 
-# ---- Agent Delegation (meta-tool: delegates task to another agent) ----
+# ============================================================================
+# 元工具 2: delegate_to_agent — 委托任务给子 Agent（串行）
+# ============================================================================
+# 当 LLM 判断当前任务更适合其他 Agent 处理时，调用此工具。
+# 这会启动一个完整的子 Agent 图执行（agent → tools → agent 循环）。
+# 委托深度受 settings.delegate_max_depth 限制，防止无限递归。
+# 前端关注点：调用时触发 "agent_switch" SSE 事件
+# ============================================================================
 
 @tool
 async def delegate_to_agent(agent_id: str, task: str) -> str:
@@ -762,7 +887,7 @@ async def delegate_to_agent(agent_id: str, task: str) -> str:
     Returns:
         The result from the target agent.
     """
-    # ---- recursion guard ----
+    # ---- 递归保护：防止无限委托 ----
     depth = _delegate_depth.get()
     if depth >= settings.delegate_max_depth:
         return (
@@ -788,7 +913,13 @@ async def delegate_to_agent(agent_id: str, task: str) -> str:
         return f"委托执行失败: {str(e)}"
 
 
-# ---- Parallel Multi-Agent Dispatch ----
+# ============================================================================
+# 元工具 3: dispatch_tasks — 并行分发任务给多个 Agent
+# ============================================================================
+# 当用户请求涉及多个专业领域时，LLM 可将任务拆解并并行分发给多个 Agent。
+# 所有子 Agent 通过 asyncio.gather 并行执行，然后汇总结果。
+# 前端关注点：调用时可能触发多个 "agent_switch" SSE 事件
+# ============================================================================
 
 @tool
 async def dispatch_tasks(sub_tasks_json) -> str:
@@ -807,7 +938,7 @@ async def dispatch_tasks(sub_tasks_json) -> str:
     """
     import json as _json
 
-    # ---- Parse input (accept both JSON string and Python list/dict) ----
+    # ---- 输入解析：支持 JSON 字符串和 Python 列表/字典 ----
     tasks = None
     if isinstance(sub_tasks_json, (list, dict)):
         tasks = sub_tasks_json if isinstance(sub_tasks_json, list) else [sub_tasks_json]
@@ -827,7 +958,7 @@ async def dispatch_tasks(sub_tasks_json) -> str:
     if len(tasks) > settings.multi_agent_max_parallel * 2:
         return f"一次最多并行 {settings.multi_agent_max_parallel * 2} 个任务，你传了 {len(tasks)} 个。"
 
-    # ---- Validate task format ----
+    # ---- 校验任务格式 ----
     agent_tasks = []
     for i, t in enumerate(tasks):
         if not isinstance(t, dict):
@@ -839,7 +970,7 @@ async def dispatch_tasks(sub_tasks_json) -> str:
         if not agent_tasks[-1]["task"]:
             return f"dispatch_tasks: 第 {i+1} 个任务缺少 'task' 字段。"
 
-    # ---- Execute (full try/except so the tool ALWAYS returns a string) ----
+    # ---- 并行执行（try/except 保证工具始终返回字符串）----
     try:
         from app.agent.sub_agent import run_sub_agents_parallel, aggregate_results
         results = await run_sub_agents_parallel(agent_tasks)
