@@ -1,4 +1,12 @@
-name: Build & Deploy (ACR + Swarm)
+name: Build & Deploy (本地构建 + 服务器推送)
+
+# ============================================================
+# 部署策略
+# ============================================================
+# GitHub Actions 跑在境外，连不上阿里云 ACR（中国机房，TLS 握手超时）
+# 解决: GitHub Runner 只构建镜像 → 导出为 tar → SCP 到服务器
+#      服务器（中国机房）从 tar 加载镜像 → 推送到 ACR → 触发 Swarm 滚动更新
+# ============================================================
 
 on:
   push:
@@ -11,7 +19,10 @@ on:
         required: false
 
 jobs:
-  build-and-push:
+  # ============================================================
+  # Job 1: 在 GitHub Runner 上构建镜像（不推送！）
+  # ============================================================
+  build:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
@@ -31,68 +42,112 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Alibaba Cloud ACR
-        uses: docker/login-action@v3
-        with:
-          # ACR_REGISTRY 格式: crpi-xxx.cn-hangzhou.personal.cr.aliyuncs.com/命名空间
-          # %%/* 提取纯域名用于登录
-          registry: ${{ secrets.ACR_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Build & Push Backend
+      # ---------- 后端构建 ----------
+      - name: Build Backend (no push)
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          push: true
-          tags: |
-            ${{ secrets.ACR_REGISTRY }}/backend:${{ steps.tag.outputs.image_tag }}
-            ${{ secrets.ACR_REGISTRY }}/backend:latest
+          push: false                          # 不推送！只构建
+          load: true                           # 加载到本地 docker
+          tags: backend:${{ steps.tag.outputs.image_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=min
         env:
           BUILDKIT_PROGRESS: plain
 
-      - name: Build & Push Frontend
+      - name: Save Backend image to tar
+        run: |
+          mkdir -p artifacts
+          docker save -o artifacts/backend.tar \
+            backend:${{ steps.tag.outputs.image_tag }} \
+            backend:latest
+          ls -lh artifacts/backend.tar
+
+      # ---------- 前端构建 ----------
+      - name: Build Frontend (no push)
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
-          push: true
-          tags: |
-            ${{ secrets.ACR_REGISTRY }}/frontend:${{ steps.tag.outputs.image_tag }}
-            ${{ secrets.ACR_REGISTRY }}/frontend:latest
+          push: false
+          load: true
+          tags: frontend:${{ steps.tag.outputs.image_tag }}
+          args: |
+            DOMAIN=${{ secrets.DOMAIN }}
           cache-from: type=gha
           cache-to: type=gha,mode=min
         env:
           BUILDKIT_PROGRESS: plain
 
+      - name: Save Frontend image to tar
+        run: |
+          docker save -o artifacts/frontend.tar \
+            frontend:${{ steps.tag.outputs.image_tag }} \
+            frontend:latest
+          ls -lh artifacts/frontend.tar
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images
+          path: artifacts/*.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  # ============================================================
+  # Job 2: 下载镜像 → SCP 到服务器 → 服务器推送 ACR + 部署 Swarm
+  # ============================================================
   deploy:
-    needs: build-and-push
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+          path: artifacts/
+
       - name: Install sshpass
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
-      - name: Deploy to Server
+      - name: SCP images to Server
         env:
           HOST: ${{ secrets.SERVER_HOST }}
           USER: ${{ secrets.SERVER_USER }}
           SSHPASS: ${{ secrets.SERVER_PASSWORD }}
           PORT: ${{ secrets.SERVER_PORT || 22 }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          echo ">>> 上传 compose 文件..."
-          sshpass -e scp -P "$PORT" docker-compose.prod.yml "$USER@$HOST:~/ai-agent-platform/"
-          sshpass -e scp -P "$PORT" -r scripts/ "$USER@$HOST:~/ai-agent-platform/"
+          # 确保服务器有接收目录
+          sshpass -e ssh -p "$PORT" "$USER@$HOST" \
+            "mkdir -p ~/ai-agent-platform/deploy-artifacts && rm -f ~/ai-agent-platform/deploy-artifacts/*.tar"
 
-          echo ">>> SSH 执行部署 (IMAGE_TAG=$IMAGE_TAG)..."
-          # ★ 关键修复: 把 IMAGE_TAG 显式传给远端 bash，SSH 不会自动转发环境变量
+          # 上传镜像 tar（SCP 用 -C 压缩传输）
+          echo ">>> 上传 backend 镜像..."
+          sshpass -e scp -P "$PORT" -C artifacts/backend.tar \
+            "$USER@$HOST:~/ai-agent-platform/deploy-artifacts/"
+
+          echo ">>> 上传 frontend 镜像..."
+          sshpass -e scp -P "$PORT" -C artifacts/frontend.tar \
+            "$USER@$HOST:~/ai-agent-platform/deploy-artifacts/"
+
+          echo ">>> 上传 compose 文件..."
+          sshpass -e scp -P "$PORT" -C docker-compose.prod.yml \
+            "$USER@$HOST:~/ai-agent-platform/"
+
+      - name: Deploy on Server (Load → Push ACR → Swarm Update)
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: ${{ secrets.SERVER_USER }}
+          SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+          PORT: ${{ secrets.SERVER_PORT || 22 }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          # 关键修复: 把 IMAGE_TAG 显式传给远端 bash（SSH 不会自动转发环境变量）
           sshpass -e ssh -p "$PORT" "$USER@$HOST" \
             "IMAGE_TAG=${IMAGE_TAG} bash -s" << 'ENDSCRIPT'
             set -e
@@ -113,34 +168,47 @@ jobs:
 
             echo ">>> IMAGE_TAG=${IMAGE_TAG}"
             echo ">>> ACR_REGISTRY=${ACR_REGISTRY}"
-            echo ">>> DOMAIN=${DOMAIN:-未设置}"
 
-            # 登录 ACR（从服务器 .env 读取凭证）
+            # ---------- 步骤 1: 加载镜像 ----------
+            echo ">>> 加载 backend 镜像..."
+            docker load -i deploy-artifacts/backend.tar
+            docker tag backend:${IMAGE_TAG} "${ACR_REGISTRY}/backend:${IMAGE_TAG}"
+            docker tag backend:${IMAGE_TAG} "${ACR_REGISTRY}/backend:latest"
+
+            echo ">>> 加载 frontend 镜像..."
+            docker load -i deploy-artifacts/frontend.tar
+            docker tag frontend:${IMAGE_TAG} "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
+            docker tag frontend:${IMAGE_TAG} "${ACR_REGISTRY}/frontend:latest"
+
+            # 清理 tar 释放磁盘
+            rm -f deploy-artifacts/*.tar
+
+            # ---------- 步骤 2: 推送 ACR ----------
             if [ -n "${ACR_PASSWORD}" ] && [ -n "${ACR_REGISTRY}" ]; then
               echo ">>> 登录 ACR..."
               echo "${ACR_PASSWORD}" | docker login \
                 --username="${ACR_USERNAME}" \
                 --password-stdin \
                 "${ACR_REGISTRY%%/*}"
+
+              echo ">>> 推送 backend:${IMAGE_TAG}"
+              docker push "${ACR_REGISTRY}/backend:${IMAGE_TAG}"
+              docker push "${ACR_REGISTRY}/backend:latest"
+
+              echo ">>> 推送 frontend:${IMAGE_TAG}"
+              docker push "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
+              docker push "${ACR_REGISTRY}/frontend:latest"
             else
-              echo ">>> ACR 凭证未配置，跳过登录"
+              echo ">>> ACR 凭证未配置，跳过推送（仅本地使用）"
             fi
 
-            # 拉取指定 SHA 镜像（不是 latest！）
-            echo ">>> 拉取 backend:${IMAGE_TAG}"
-            docker pull "${ACR_REGISTRY}/backend:${IMAGE_TAG}"
-
-            echo ">>> 拉取 frontend:${IMAGE_TAG}"
-            docker pull "${ACR_REGISTRY}/frontend:${IMAGE_TAG}"
-
-            # ★ 两步部署:
-            #   Step 1: docker stack deploy — 首次部署 + 应用 compose 变更（config/replicas/healthcheck）
-            #   Step 2: docker service update --image — 强制指向 SHA tag（解决 latest 不更新的问题）
+            # ---------- 步骤 3: 同步 Stack 配置 ----------
             echo ">>> 同步 Stack 配置..."
             export ACR_REGISTRY IMAGE_TAG
             docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}" --resolve-image never 2>/dev/null || \
               docker stack deploy -c docker-compose.prod.yml "${STACK_NAME}"
 
+            # ---------- 步骤 4: 强制更新到 SHA 镜像 ----------
             echo ">>> 更新 backend → ${ACR_REGISTRY}/backend:${IMAGE_TAG}"
             docker service update \
               --image "${ACR_REGISTRY}/backend:${IMAGE_TAG}" \
@@ -154,9 +222,10 @@ jobs:
               --image "${ACR_REGISTRY}/frontend:${IMAGE_TAG}" \
               --update-order start-first \
               --update-failure-action rollback \
+              --update-monitor 10s \
               "${STACK_NAME}_frontend" 2>/dev/null || echo ">>> (首次部署跳过 frontend update)"
 
-            # 等待 backend 就绪
+            # ---------- 步骤 5: 等待并验证 ----------
             echo ">>> 等待 backend 健康检查..."
             for i in $(seq 1 30); do
               if curl -sf -X POST http://localhost:8000/api/v1/health > /dev/null 2>&1; then
@@ -167,11 +236,11 @@ jobs:
               sleep 5
             done
 
-            echo ">>> 健康检查验证..."
-            curl -sf -X POST http://localhost:8000/api/v1/health && echo ">>> 后端 OK" || echo ">>> 后端健康检查失败"
-            curl -sf http://localhost:80/ && echo ">>> 前端 HTTP OK" || echo ">>> 前端 HTTP 检查失败"
+            echo ">>> 最终验证:"
+            curl -sf -X POST http://localhost:8000/api/v1/health && echo " ✅ backend OK" || echo " ❌ backend 失败"
+            curl -sf http://localhost:80/ > /dev/null && echo " ✅ frontend HTTP OK" || echo " ❌ frontend HTTP 失败"
             if [ -n "${DOMAIN}" ]; then
-              curl -sfk https://localhost/ && echo ">>> 前端 HTTPS OK" || echo ">>> 前端 HTTPS 检查失败（证书可能尚未配置，运行 setup-https.sh）"
+              curl -sfk https://localhost/ > /dev/null && echo " ✅ frontend HTTPS OK" || echo " ❌ frontend HTTPS 失败"
             fi
 
             echo ">>> 当前服务状态:"
