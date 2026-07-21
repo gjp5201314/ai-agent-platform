@@ -21,7 +21,7 @@ router = APIRouter()
 #  Health
 # ---------------------------------------------------------------------------
 
-@router.get("/health")
+@router.post("/health")
 async def sandbox_health() -> dict:
     """Check if the DifySandbox service is reachable and healthy."""
     client = get_sandbox_client()

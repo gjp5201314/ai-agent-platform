@@ -183,7 +183,61 @@ async def agent_node(state: AgentState) -> dict:
     # Ensure content is string and no duplicate system messages
     messages = _clean_messages(raw_messages)
 
-    response = await llm.ainvoke(messages)
+    try:
+        response = await llm.ainvoke(messages)
+    except Exception as e:
+        # Catch ALL LLM-related errors and return a user-friendly message
+        # instead of letting the exception propagate silently (LangGraph may swallow it)
+        error_name = type(e).__name__
+        error_detail = str(e)[:500]
+
+        # Classify the error for a helpful message
+        msg_lower = error_detail.lower()
+        if "quota" in msg_lower or "exhausted" in msg_lower:
+            friendly = (
+                f"抱歉，当前使用的 AI 模型免费额度已用尽。\n\n"
+                f"解决方案：\n"
+                f"1. 前往阿里云百炼控制台充值或关闭「仅使用免费额度」限制\n"
+                f"2. 切换到 Mock 模式继续测试（点击输入框旁的 Mock 按钮）\n"
+                f"3. 在管理后台切换到其他可用的模型\n\n"
+                f"技术细节：{error_detail[:200]}"
+            )
+        elif "authentication" in msg_lower or "api_key" in msg_lower or "unauthorized" in msg_lower:
+            friendly = (
+                f"抱歉，AI 模型认证失败。请检查 API Key 是否正确配置。\n\n"
+                f"可以在管理后台或 .env 文件中更新 API Key。\n\n"
+                f"技术细节：{error_detail[:200]}"
+            )
+        elif "timeout" in msg_lower or "timed out" in msg_lower:
+            friendly = (
+                f"抱歉，AI 模型响应超时。可能是网络问题或模型服务暂时繁忙。\n"
+                f"请稍后重试，或切换到 Mock 模式继续测试。"
+            )
+        elif "rate" in msg_lower or "too many" in msg_lower:
+            friendly = (
+                f"抱歉，请求太频繁，AI 模型触发了速率限制。\n"
+                f"请等待几秒后重试。"
+            )
+        elif "model_not_found" in msg_lower or "does not exist" in msg_lower:
+            friendly = (
+                f"抱歉，当前配置的模型不可用或不存在。\n"
+                f"请在管理后台切换到其他模型。\n\n"
+                f"当前模型：{settings.qwen_model}\n"
+                f"技术细节：{error_detail[:200]}"
+            )
+        else:
+            friendly = (
+                f"抱歉，AI 模型返回了错误，暂时无法处理您的请求。\n\n"
+                f"错误类型：{error_name}\n"
+                f"错误详情：{error_detail[:300]}\n\n"
+                f"您可以尝试：\n"
+                f"1. 稍后重试\n"
+                f"2. 切换到 Mock 模式（点击输入框旁的 Mock 按钮）\n"
+                f"3. 检查后端日志获取更多信息"
+            )
+
+        logger.error(f"LLM call failed: {error_name}: {error_detail}")
+        return {"messages": [AIMessage(content=friendly)], "iteration": state.get("iteration", 0) + 1}
 
     return {"messages": [response], "iteration": state.get("iteration", 0) + 1}
 

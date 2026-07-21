@@ -255,5 +255,20 @@ async def run_agent(
             "type": "token",
             "content": "\n\n[Agent 执行超时，已终止当前请求。请重试或简化问题。]",
         }
+    except Exception as e:
+        # Catch any LLM/graph-level errors that escape the agent_node handler.
+        # This is the safety net when LangGraph doesn't propagate exceptions cleanly.
+        error_name = type(e).__name__
+        error_detail = str(e)[:300]
+        logger.error(f"LangGraph execution error: {error_name}: {error_detail}", exc_info=True)
+        yield {
+            "type": "token",
+            "content": (
+                f"\n\n抱歉，AI 服务暂时不可用。\n\n"
+                f"错误类型：{error_name}\n"
+                f"建议：切换到 Mock 模式继续测试，或检查后端日志。\n"
+                f"详情：{error_detail}"
+            ),
+        }
 
     yield {"type": "done", "sources": rag_context}

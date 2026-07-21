@@ -530,72 +530,78 @@ async def _stream_response(conversation_id, messages, agent_config, use_rag, use
                         sources = event["sources"]
                     yield f"data: {json.dumps({'type': 'done', 'sources': sources}, ensure_ascii=False)}\n\n"
 
+        # --- Stream phase complete: send [DONE] IMMEDIATELY ---
+        # This unblocks the client BEFORE the slow DB/memory operations below.
+        # Previously [DONE] was yielded after the finally block, causing the client
+        # to hang with "sending..." spinner for 2-5s while DB writes and Mem0 LLM calls ran.
+        try:
+            yield "data: [DONE]\n\n"
+        except (GeneratorExit, StopAsyncIteration, RuntimeError):
+            pass
+
     except Exception as e:
         # Log full traceback server-side, return sanitized message to client
         import traceback
         logger.error(f"Agent error: {type(e).__name__}: {e}", exc_info=True)
         traceback.print_exc()
         error_msg = "抱歉，服务暂时不可用，请稍后重试。"
+        # Yield [DONE] before error to ensure client always terminates
         yield f"data: {json.dumps({'type': 'error', 'content': error_msg}, ensure_ascii=False)}\n\n"
         full_response = f"[系统提示] {error_msg}"
-    finally:
-        if full_response:
-            try:
-                async with async_session_factory() as db:
-                    assistant_msg = Message(
-                        conversation_id=conversation_id,
-                        role="assistant",
-                        content=full_response,
-                        metadata_={"sources": sources} if sources else {},
+        try:
+            yield "data: [DONE]\n\n"
+        except (GeneratorExit, StopAsyncIteration, RuntimeError):
+            pass
+
+    # --- Post-stream: DB persistence (client already disconnected) ---
+    if full_response:
+        try:
+            async with async_session_factory() as db:
+                assistant_msg = Message(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=full_response,
+                    metadata_={"sources": sources} if sources else {},
+                )
+                db.add(assistant_msg)
+
+                conv_result = await db.execute(
+                    select(Conversation).where(Conversation.id == conversation_id)
+                )
+                conv = conv_result.scalar_one_or_none()
+                if conv and conv.title == "New Conversation":
+                    user_result = await db.execute(
+                        select(Message)
+                        .where(Message.conversation_id == conversation_id)
+                        .where(Message.role == "user")
+                        .order_by(Message.id)
+                        .limit(1)
                     )
-                    db.add(assistant_msg)
+                    first_user = user_result.scalar_one_or_none()
+                    if first_user:
+                        conv.title = first_user.content[:50] + ("..." if len(first_user.content) > 50 else "")
 
-                    conv_result = await db.execute(
-                        select(Conversation).where(Conversation.id == conversation_id)
+                await db.commit()
+
+                # Save to long-term memory (Mem0) — fire and forget, don't block
+                try:
+                    ur = await db.execute(
+                        select(Message)
+                        .where(Message.conversation_id == conversation_id)
+                        .where(Message.role == "user")
+                        .order_by(Message.id.desc())
+                        .limit(1)
                     )
-                    conv = conv_result.scalar_one_or_none()
-                    if conv and conv.title == "New Conversation":
-                        user_result = await db.execute(
-                            select(Message)
-                            .where(Message.conversation_id == conversation_id)
-                            .where(Message.role == "user")
-                            .order_by(Message.id)
-                            .limit(1)
+                    last_user = ur.scalar_one_or_none()
+                    if last_user and full_response:
+                        await add_memories(
+                            [
+                                {"role": "user", "content": last_user.content},
+                                {"role": "assistant", "content": full_response},
+                            ],
+                            user_id=user_id,
                         )
-                        first_user = user_result.scalar_one_or_none()
-                        if first_user:
-                            conv.title = first_user.content[:50] + ("..." if len(first_user.content) > 50 else "")
-
-                    await db.commit()
-
-                    # Save to long-term memory (Mem0)
-                    try:
-                        ur = await db.execute(
-                            select(Message)
-                            .where(Message.conversation_id == conversation_id)
-                            .where(Message.role == "user")
-                            .order_by(Message.id.desc())
-                            .limit(1)
-                        )
-                        last_user = ur.scalar_one_or_none()
-                        if last_user and full_response:
-                            await add_memories(
-                                [
-                                    {"role": "user", "content": last_user.content},
-                                    {"role": "assistant", "content": full_response},
-                                ],
-                                user_id=user_id,
-                            )
-                    except Exception as e:
-                        logger.warning(f"Memory save failed: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to save assistant message: {e}")
-
-    # ALWAYS send the terminal marker so the client knows the stream ended cleanly.
-    # This runs whether the function exits normally, via exception, or via cancellation.
-    try:
-        yield "data: [DONE]\n\n"
-    except (GeneratorExit, StopAsyncIteration, RuntimeError):
-        pass
-    except Exception as e:
-        logger.debug(f"Final [DONE] yield error: {e}")
+                except Exception as e:
+                    logger.warning(f"Memory save failed: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to save assistant message: {e}")

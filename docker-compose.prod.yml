@@ -36,6 +36,11 @@ services:
         constraints: [node.role == manager]
       restart_policy:
         condition: on-failure
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # ---- Cache ----
   redis:
@@ -55,6 +60,11 @@ services:
         constraints: [node.role == manager]
       restart_policy:
         condition: on-failure
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
 
   # ---- Sandbox (DifySandbox - secure code execution) ----
   sandbox:
@@ -91,11 +101,9 @@ services:
         condition: on-failure
       resources:
         limits:
-          memory: 512M
-          cpus: "1.0"
+          memory: 256M
         reservations:
-          memory: 128M
-          cpus: "0.25"
+          memory: 64M
 
   # ---- Backend (FastAPI + LangGraph) ----
   # Swarm 模式下由内建 DNS 自动对 replicas 做 round-robin 负载均衡
@@ -138,6 +146,11 @@ services:
       restart_policy:
         condition: on-failure
         max_attempts: 3
+      resources:
+        limits:
+          memory: 600M
+        reservations:
+          memory: 200M
 
   # ---- Frontend (React + nginx) ----
   frontend:
@@ -152,7 +165,9 @@ services:
       - certs:/etc/letsencrypt:ro
       - certbot_webroot:/var/www/certbot:ro
     healthcheck:
-      test: ["CMD", "curl", "-sfk", "https://localhost/"]
+      # HTTP instead of HTTPS: cert renewal won't trigger false-positive failure
+      # (HTTPS self-check fails briefly when cert symlink is updated)
+      test: ["CMD", "curl", "-sf", "http://localhost/"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -166,6 +181,11 @@ services:
       restart_policy:
         condition: on-failure
         max_attempts: 3
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
 
   # ---- Certbot (Let's Encrypt auto-cert) ----
   # Initial cert: run scripts/setup-https.sh on server (one-time)
@@ -214,6 +234,11 @@ services:
         constraints: [node.role == manager]
       restart_policy:
         condition: on-failure
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 16M
 
 volumes:
   postgres_data:

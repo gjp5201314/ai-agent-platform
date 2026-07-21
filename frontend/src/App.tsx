@@ -185,9 +185,10 @@ function ChatLayout() {
    * @param attachments - 附件列表
    */
   const handleSend = useCallback(
-    (message: string, attachments: Attachment[] = []) => {
-      sendMessage(message, activeAgent?.id || null, useRag, modelProvider, attachments, mockMode);
-      setTimeout(loadConversations, 500);
+    async (message: string, attachments: Attachment[] = []) => {
+      await sendMessage(message, activeAgent?.id || null, useRag, modelProvider, attachments, mockMode);
+      // Brief delay for backend post-stream DB persistence
+      setTimeout(loadConversations, 300);
     },
     [sendMessage, activeAgent, useRag, modelProvider, loadConversations, mockMode]
   );

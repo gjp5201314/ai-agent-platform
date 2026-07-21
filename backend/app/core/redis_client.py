@@ -18,6 +18,9 @@ async def get_redis() -> redis.Redis:
             settings.redis_url,
             decode_responses=True,
             max_connections=20,
+            # Force RESP2 protocol — newer redis-py defaults to HELLO 3 (RESP3)
+            # which is incompatible with password-protected Redis 7 (HELLO AUTH option bug)
+            protocol=2,
         )
     return _redis_client
 

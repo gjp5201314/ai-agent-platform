@@ -85,6 +85,17 @@ async def init_db():
                 END IF;
             END $$;
         """))
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'agent_configs' AND column_name = 'allow_delegation'
+                ) THEN
+                    ALTER TABLE agent_configs ADD COLUMN allow_delegation BOOLEAN DEFAULT TRUE;
+                END IF;
+            END $$;
+        """))
         # 添加tsvector列（幂等）
         await conn.execute(text("""
             DO $$

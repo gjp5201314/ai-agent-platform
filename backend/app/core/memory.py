@@ -51,6 +51,11 @@ def _get_client():
                 "model": settings.embedding_model,
                 "api_key": settings.embedding_api_key or api_key,
                 "openai_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                # CRITICAL: Must pass embedding_dims to avoid dimension mismatch.
+                # Without this, Mem0 uses OpenAI default (1536), but DashScope
+                # text-embedding-v3 only supports: 64/128/256/512/768/1024.
+                # Default 1536 → 400 error → all add/search silently fail.
+                "embedding_dims": settings.embedding_dimensions,
             },
         },
         # ---- Vector Store: PostgreSQL + pgvector (PERSISTENT) ----
