@@ -1,6 +1,6 @@
 """
-FastAPI application entry point — enterprise AI agent platform.
-Security-first design: all read endpoints use POST with JSON body.
+FastAPI应用入口 - 企业级AI Agent平台
+安全设计：所有读接口使用POST + JSON请求体
 """
 import os
 import time
@@ -18,7 +18,7 @@ from app.database import init_db
 from app.core.redis_client import get_redis, close_redis
 from app.core.sandbox import close_sandbox_client
 
-# Apply LangSmith tracing settings to environment before any LangChain import.
+# 在导入LangChain之前设置LangSmith追踪环境变量
 if settings.langsmith_tracing and settings.langsmith_api_key:
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
     os.environ["LANGCHAIN_ENDPOINT"] = settings.langsmith_endpoint
@@ -28,48 +28,47 @@ if settings.langsmith_tracing and settings.langsmith_api_key:
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle: startup and shutdown."""
-    # ---- Startup ----
-    await init_db()
-    await _seed_default_agent()
-    redis = await get_redis()
-    await redis.ping()
-    os.makedirs(settings.upload_dir, exist_ok=True)
-    logger.info(f"Database initialized, Redis connected. Provider: {settings.llm_provider}")
+    """应用生命周期管理：启动和关闭"""
+    # ---- 启动 ----
+    await init_db()                    # 初始化数据库
+    await _seed_default_agent()        # 创建默认Agent
+    redis = await get_redis()          # 连接Redis
+    await redis.ping()                 # 测试连接
+    os.makedirs(settings.upload_dir, exist_ok=True)  # 创建上传目录
+    logger.info(f"数据库初始化完成，Redis已连接。提供商: {settings.llm_provider}")
 
     yield
 
-    # ---- Shutdown ----
-    await close_sandbox_client()
-    await close_redis()
-    logger.info("Connections closed.")
+    # ---- 关闭 ----
+    await close_sandbox_client()       # 关闭沙箱客户端
+    await close_redis()                # 关闭Redis连接
+    logger.info("连接已关闭。")
 
 
 app = FastAPI(
     title="AI Agent Platform",
-    description="Enterprise-grade AI Agent with RAG, tool calling, and streaming chat. "
-                "Powered by LangGraph + FastAPI + PostgreSQL/pgvector.",
+    description="企业级AI Agent平台，支持RAG、工具调用、流式聊天。基于LangGraph + FastAPI + PostgreSQL/pgvector。",
     version="1.1.0",
     lifespan=lifespan,
     docs_url="/api/docs" if not settings.app_debug else "/docs",
-    redoc_url=None,  # Disable ReDoc in production
+    redoc_url=None,  # 生产环境禁用ReDoc
 )
 
 
 # ============================================================
-#  Middleware Stack (order matters — outermost first)
+#  中间件栈（顺序重要 - 最外层最先执行）
 # ============================================================
 
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
-    """Inject enterprise security headers + request-id on every response."""
+    """为每个响应添加安全头和请求ID"""
     request_id = request.headers.get("X-Request-ID") or _uuid.uuid4().hex[:16]
     request.state.request_id = request_id
     request.state.start_time = time.time()
 
     response = await call_next(request)
 
-    # Security headers
+    # 安全头
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -81,28 +80,28 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
     response.headers["Pragma"] = "no-cache"
 
-    # Audit: log request duration (non-blocking print; use structured logging in production)
+    # 审计：记录慢请求
     elapsed_ms = int((time.time() - request.state.start_time) * 1000)
     if elapsed_ms > 3000:
-        logger.warning(f"Slow request: {request.method} {request.url.path} — {elapsed_ms}ms [rid={request_id}]")
+        logger.warning(f"慢请求: {request.method} {request.url.path} — {elapsed_ms}ms [rid={request_id}]")
 
     return response
 
 
 @app.middleware("http")
 async def request_size_guard(request: Request, call_next):
-    """Reject oversized request bodies early (10 MB hard cap)."""
+    """拒绝过大的请求体（硬限制10MB）"""
     if request.method == "POST":
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > 10 * 1024 * 1024:
             return JSONResponse(
                 status_code=413,
-                content={"detail": "Request body too large. Maximum 10 MB."},
+                content={"detail": "请求体过大。最大10MB。"},
             )
     return await call_next(request)
 
 
-# CORS — tightened for POST-only API
+# CORS配置 - 仅允许POST和OPTIONS方法
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -118,7 +117,7 @@ app.add_middleware(
     max_age=3600,
 )
 
-# Register routers under API version prefix
+# 注册路由器到API版本前缀
 from app.api import chat, rag, conversations, agents, health, admin, sandbox  # noqa: E402
 
 API_V1 = "/api/v1"
@@ -131,13 +130,13 @@ app.include_router(agents.router, prefix=f"{API_V1}/agents", tags=["agents"])
 app.include_router(admin.router, prefix=f"{API_V1}/admin", tags=["admin"])
 app.include_router(sandbox.router, prefix=f"{API_V1}/sandbox", tags=["sandbox"])
 
-# Serve uploaded files through a controlled endpoint (not raw StaticFiles)
+# 通过受控端点提供上传文件（非原始StaticFiles）
 os.makedirs(settings.upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 
 async def _seed_default_agent():
-    """Create or update default agents (idempotent — uses fixed IDs)."""
+    """创建或更新默认Agent（幂等 - 使用固定ID）"""
     from sqlalchemy import select, func
     from app.database import async_session_factory
     from app.models import AgentConfig
@@ -156,6 +155,7 @@ async def _seed_default_agent():
         count = count_result.scalar()
 
         if count == 0:
+            # 创建默认通用助手
             default_agent = AgentConfig(
                 id="default",
                 name="通用助手",
@@ -182,9 +182,9 @@ async def _seed_default_agent():
             )
             db.add(default_agent)
             await db.commit()
-            logger.info("Default agent created.")
+            logger.info("默认Agent已创建。")
 
-        # ---- Ensure existing default agent has all current tools (idempotent update) ----
+        # ---- 确保现有默认Agent包含所有当前工具（幂等更新）----
         result = await db.execute(select(AgentConfig).where(AgentConfig.id == "default"))
         existing = result.scalar_one_or_none()
         if existing:
@@ -194,9 +194,9 @@ async def _seed_default_agent():
                 merged = list(dict.fromkeys(list(existing.enabled_tools or []) + DEFAULT_TOOLS))
                 existing.enabled_tools = merged
                 await db.commit()
-                logger.info(f"Default agent tools updated: {len(merged)} tools now enabled.")
+                logger.info(f"默认Agent工具已更新：现在启用 {len(merged)} 个工具。")
 
-        # ---- Ensure the protected RAG-only agent exists (idempotent by fixed ID) ----
+        # ---- 确保受保护的RAG专用Agent存在（幂等，固定ID）----
         result = await db.execute(select(AgentConfig).where(AgentConfig.id == "rag-assistant"))
         if not result.scalar_one_or_none():
             rag_agent = AgentConfig(
@@ -216,14 +216,14 @@ async def _seed_default_agent():
                 max_tokens=4096,
                 enabled_tools=["search_knowledge_base"],
                 rag_top_k=5,
-                rag_similarity_threshold=0.3,  # Lower threshold for broader matching
+                rag_similarity_threshold=0.3,  # 降低阈值以获得更广泛的匹配
                 is_default=False,
                 is_protected=True,
                 allow_delegation=True,
             )
             db.add(rag_agent)
             await db.commit()
-            logger.info("Protected RAG-only agent created.")
+            logger.info("受保护的RAG专用Agent已创建。")
 
 
 if __name__ == "__main__":

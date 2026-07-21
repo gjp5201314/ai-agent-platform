@@ -1,5 +1,5 @@
 """
-Database engine and session management (async SQLAlchemy + pgvector).
+数据库引擎和会话管理（异步SQLAlchemy + pgvector）
 """
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -11,8 +11,8 @@ from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
 from app.core.logger import logger
 
-# Enable pgvector extension - must be created before any model uses it
-# We handle CREATE EXTENSION in the init script / migration
+# 启用pgvector扩展 - 必须在任何模型使用它之前创建
+# 我们在初始化脚本/迁移中处理CREATE EXTENSION
 
 engine = create_async_engine(
     settings.database_url,
@@ -30,12 +30,12 @@ async_session_factory = async_sessionmaker(
 
 
 class Base(DeclarativeBase):
-    """Declarative base for all ORM models."""
+    """所有ORM模型的声明基类"""
     pass
 
 
 async def get_db() -> AsyncSession:
-    """FastAPI dependency: yields an async DB session."""
+    """FastAPI依赖：提供异步数据库会话"""
     async with async_session_factory() as session:
         try:
             yield session
@@ -49,20 +49,20 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """
-    Initialize database: create extensions, tables, and full-text search indexes.
-    Call this on application startup.
+    初始化数据库：创建扩展、表和全文搜索索引
+    在应用启动时调用
     """
     from sqlalchemy import text
     from app.models import Conversation, Message, Document, DocumentChunk, AgentConfig  # noqa
 
     async with engine.begin() as conn:
-        # pgvector extension for vector columns
+        # pgvector扩展，用于向量列
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
-        # Run table creation first
+        # 先运行表创建
         await conn.run_sync(Base.metadata.create_all)
 
-        # ---- Schema migrations: new columns (idempotent) ----
+        # ---- 模式迁移：新列（幂等）----
         await conn.execute(text("""
             DO $$
             BEGIN
@@ -85,7 +85,7 @@ async def init_db():
                 END IF;
             END $$;
         """))
-        # Add tsvector column (idempotent)
+        # 添加tsvector列（幂等）
         await conn.execute(text("""
             DO $$
             BEGIN
@@ -99,29 +99,29 @@ async def init_db():
             END $$;
         """))
 
-        # Create GIN index for fast full-text search (idempotent)
+        # 创建GIN索引用于快速全文搜索（幂等）
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_document_chunks_search
             ON document_chunks USING GIN (search_vector);
         """))
 
-        # ---- HNSW vector index for fast ANN (cosine distance) ----
-        # HNSW provides orders-of-magnitude faster search than IVFFlat
-        # for high-dimensional vectors, scales with log(N).
+        # ---- HNSW向量索引用于快速ANN（余弦距离）----
+        # HNSW比IVFFlat在高维向量上提供数量级的更快搜索
+        # 复杂度为log(N)
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
             ON document_chunks USING hnsw (embedding vector_cosine_ops)
             WITH (m = 16, ef_construction = 200);
         """))
 
-    # ---- Re-index existing chunks with CJK tokenization ----
+    # ---- 使用CJK分词重新索引现有块 ----
     await _reindex_existing_chunks()
 
 
 async def _reindex_existing_chunks():
     """
-    Re-populate search_vector for all existing chunks using CJK-aware
-    tokenization (Python-side, avoids PL/pgSQL escaping issues).
+    使用CJK感知分词重新填充所有现有块的search_vector
+    （Python端，避免PL/pgSQL转义问题）
     """
     from sqlalchemy import text, select
     from app.models import DocumentChunk
@@ -142,4 +142,4 @@ async def _reindex_existing_chunks():
             )
 
         await session.commit()
-        logger.info(f"Reindexed {len(rows)} document chunks for hybrid keyword search")
+        logger.info(f"已为 {len(rows)} 个文档块重新建立混合关键词搜索索引")

@@ -1,3 +1,14 @@
+/**
+ * 侧边栏组件
+ * 
+ * 功能说明：
+ * 1. 显示会话列表（支持搜索）
+ * 2. Agent选择器
+ * 3. 新建对话按钮
+ * 4. 快捷操作入口（知识库、设置、管理后台）
+ * 5. 沙箱状态指示器
+ */
+
 import { useState } from "react";
 import {
   Plus, MessageSquare, Trash2, FileText, Settings as SettingsIcon, X, Search, Bot, Cpu, ChevronDown, SlidersHorizontal
@@ -8,19 +19,19 @@ import { Separator } from "@/components/ui/separator";
 import type { Conversation, AgentConfig } from "../types";
 
 interface Props {
-  conversations: Conversation[];
-  agents: AgentConfig[];
-  activeAgent: AgentConfig | null;
-  activeId: string | null;
-  onSelect: (id: string) => void;
-  onNew: () => void;
-  onDelete: (id: string) => void;
-  onSwitchAgent: (agent: AgentConfig) => void;
-  onOpenDocuments: () => void;
-  onOpenSettings: () => void;
-  onOpenAdmin: () => void;
-  onClose?: () => void;
-  sandboxOnline?: boolean | null;
+  conversations: Conversation[];          // 会话列表
+  agents: AgentConfig[];                  // Agent列表
+  activeAgent: AgentConfig | null;        // 当前激活的Agent
+  activeId: string | null;                // 当前激活的会话ID
+  onSelect: (id: string) => void;         // 选择会话回调
+  onNew: () => void;                      // 新建会话回调
+  onDelete: (id: string) => void;         // 删除会话回调
+  onSwitchAgent: (agent: AgentConfig) => void; // 切换Agent回调
+  onOpenDocuments: () => void;            // 打开知识库回调
+  onOpenSettings: () => void;             // 打开设置回调
+  onOpenAdmin: () => void;                // 打开管理后台回调
+  onClose?: () => void;                   // 关闭侧边栏回调（移动端）
+  sandboxOnline?: boolean | null;         // 沙箱状态
 }
 
 export function Sidebar({
@@ -38,17 +49,24 @@ export function Sidebar({
   onClose,
   sandboxOnline,
 }: Props) {
+  // ========== 状态管理 ==========
+  
+  /** 搜索关键词 */
   const [search, setSearch] = useState("");
+  
+  /** Agent下拉菜单是否打开 */
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
 
+  // 过滤会话列表
   const filtered = conversations.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="flex flex-col h-full w-64 bg-[#f8f9fa] border-r border-gray-200">
-      {/* Header */}
+      {/* ========== 头部区域 ========== */}
       <div className="p-4 border-b border-gray-200">
+        {/* Logo和关闭按钮 */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-ds-500 flex items-center justify-center">
@@ -59,6 +77,7 @@ export function Sidebar({
               <p className="text-[10px] text-gray-400">Platform</p>
             </div>
           </div>
+          {/* 移动端关闭按钮 */}
           {onClose && (
             <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8 text-gray-500" onClick={onClose}>
               <X size={18} />
@@ -66,7 +85,7 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Agent Selector */}
+        {/* ========== Agent选择器 ========== */}
         <div className="relative">
           <button
             onClick={() => setAgentMenuOpen(!agentMenuOpen)}
@@ -86,9 +105,12 @@ export function Sidebar({
             />
           </button>
 
+          {/* Agent下拉菜单 */}
           {agentMenuOpen && (
             <>
+              {/* 点击外部关闭 */}
               <div className="fixed inset-0 z-10" onClick={() => setAgentMenuOpen(false)} />
+              {/* 菜单内容 */}
               <div className="absolute left-0 right-0 top-full mt-1 z-20
                               bg-white rounded-lg border border-gray-200
                               shadow-lg overflow-hidden">
@@ -112,6 +134,7 @@ export function Sidebar({
                       >
                         <Cpu size={12} />
                         <span className="flex-1 truncate">{agent.name}</span>
+                        {/* 默认标记 */}
                         {agent.is_default && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded
                                            bg-emerald-50 text-emerald-600
@@ -126,7 +149,7 @@ export function Sidebar({
           )}
         </div>
 
-        {/* New chat button */}
+        {/* ========== 新建对话按钮 ========== */}
         <Button
           onClick={onNew}
           className="w-full gap-2 mt-2.5 bg-ds-500 hover:bg-ds-600 text-white border-0 shadow-sm"
@@ -136,7 +159,7 @@ export function Sidebar({
         </Button>
       </div>
 
-      {/* Search */}
+      {/* ========== 搜索框 ========== */}
       <div className="px-4 py-2">
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -149,7 +172,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Conversation list */}
+      {/* ========== 会话列表 ========== */}
       <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
         {filtered.length === 0 ? (
           <div className="text-center py-12">
@@ -172,9 +195,11 @@ export function Sidebar({
             >
               <MessageSquare size={14} className="flex-shrink-0" />
               <span className="flex-1 truncate text-xs">{conv.title}</span>
+              {/* 消息数量 */}
               <span className="text-[10px] text-gray-300 tabular-nums flex-shrink-0">
                 {conv.message_count}
               </span>
+              {/* 删除按钮 */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -190,9 +215,10 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Bottom actions */}
+      {/* ========== 底部操作按钮 ========== */}
       <Separator className="bg-gray-200" />
       <div className="p-2 space-y-0.5">
+        {/* 知识库管理 */}
         <Button
           variant="ghost"
           onClick={onOpenDocuments}
@@ -201,6 +227,7 @@ export function Sidebar({
           <FileText size={16} />
           知识库管理
         </Button>
+        {/* Agent设置 */}
         <Button
           variant="ghost"
           onClick={onOpenSettings}
@@ -209,6 +236,7 @@ export function Sidebar({
           <SettingsIcon size={16} />
           Agent 设置
         </Button>
+        {/* 管理后台 */}
         <Button
           variant="ghost"
           onClick={onOpenAdmin}
@@ -218,7 +246,7 @@ export function Sidebar({
           管理后台
         </Button>
 
-        {/* Sandbox status indicator */}
+        {/* ========== 沙箱状态指示器 ========== */}
         {sandboxOnline !== null && (
           <div className="flex items-center gap-2 px-3 py-2">
             <span
