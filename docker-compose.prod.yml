@@ -110,9 +110,10 @@ services:
   backend:
     image: ${ACR_REGISTRY}/backend:${IMAGE_TAG:-latest}
     ports:
-      - 8000:8000
+      - 127.0.0.1:8000:8000
     environment:
       POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_strong_password}
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secure_password}
       APP_HOST: "0.0.0.0"
@@ -180,12 +181,12 @@ services:
         monitor: 10s
       restart_policy:
         condition: on-failure
-        max_attempts: 3
+        # 去掉 max_attempts 限制，避免 nginx OOM 后 Docker 放弃重启
       resources:
         limits:
-          memory: 128M
+          memory: 256M
         reservations:
-          memory: 32M
+          memory: 64M
 
   # ---- Certbot (Let's Encrypt auto-cert) ----
   # Initial cert: run scripts/setup-https.sh on server (one-time)

@@ -15,7 +15,10 @@ RUN apk add --no-cache openssl
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# nginx config uses envsubst for ${DOMAIN} substitution
+# nginx base config (low-memory tuning)
+COPY nginx-base.conf /etc/nginx/nginx.conf
+
+# nginx site config uses envsubst for ${DOMAIN}/${CERT_KEY}/${CERT_CHAIN} substitution
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
