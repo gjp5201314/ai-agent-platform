@@ -49,7 +49,10 @@ jobs:
           context: ./backend
           push: false                          # 不推送！只构建
           load: true                           # 加载到本地 docker
-          tags: backend:${{ steps.tag.outputs.image_tag }}
+          # 同时打两个 tag：SHA + latest，这样 docker save 才有东西可导出
+          tags: |
+            backend:${{ steps.tag.outputs.image_tag }}
+            backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=min
         env:
@@ -70,7 +73,10 @@ jobs:
           context: ./frontend
           push: false
           load: true
-          tags: frontend:${{ steps.tag.outputs.image_tag }}
+          # 同时打两个 tag：SHA + latest
+          tags: |
+            frontend:${{ steps.tag.outputs.image_tag }}
+            frontend:latest
           args: |
             DOMAIN=${{ secrets.DOMAIN }}
           cache-from: type=gha
